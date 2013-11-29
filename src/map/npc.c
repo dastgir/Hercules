@@ -1143,7 +1143,6 @@ void run_tomb(struct map_session_data* sd, struct npc_data* nd)
 int npc_click(struct map_session_data* sd, struct npc_data* nd)
 {
 	char output[CHAT_SIZE_MAX];
-	struct item_data *i_data = NULL;
 	nullpo_retr(1, sd);
 
 	if (sd->npc_id != 0) {
@@ -1158,26 +1157,50 @@ int npc_click(struct map_session_data* sd, struct npc_data* nd)
 	if (nd->class_ < 0 || nd->option&(OPTION_INVISIBLE|OPTION_HIDE))
 		return 1;
 
-	switch(nd->subtype) {
+	switch(nd->subtype) {	//[Dastgir Pojee]
 		case SHOP:
 			clif->npcbuysell(sd,nd->bl.id);
 			break;
 
-		case ITEMSHOP:
-			if ((i_data = itemdb->exists(nd->u.shop.itemshop_nameid)) == NULL){
-				return 1;	//Item Not Found
+		case ITEMSHOP:{
+				struct item_data *i_data = NULL;
+				int i=0,val=0;
+				if ((i_data = itemdb->exists(nd->u.shop.itemshop_nameid)) == NULL){
+					return 1;	//Item Not Found
+					break;
+				}
+
+				if( (i = pc->search_inventory(sd,nd->u.shop.itemshop_nameid)) >= 0 )
+					val = sd->status.inventory[i].amount;
+
+				sprintf(output, msg_txt(453), i_data->jname, nd->u.shop.itemshop_nameid);
+				clif->broadcast(&sd->bl, output, strlen(output) + 1, 0x10, SELF);
+				sprintf(output, msg_txt(455), val,i_data->jname);
+				clif->colormes(sd->fd,COLOR_DEFAULT,output);
+				clif->npcbuysell(sd,nd->bl.id);
 				break;
 			}
-
-			sprintf(output, msg_txt(453), i_data->jname);
-			clif->broadcast(&sd->bl, output, strlen(output) + 1, 0x10, SELF);
-			clif->npcbuysell(sd,nd->bl.id);
-			break;
-		case POINTSHOP:
-			sprintf(output, msg_txt(454),nd->u.shop.pointshop_desc);
-			clif->broadcast(&sd->bl, output, strlen(output) + 1, 0x10, SELF);
-			clif->npcbuysell(sd,nd->bl.id);
-			break;
+		case POINTSHOP:{
+				int count;
+				sprintf(output, msg_txt(454),nd->u.shop.pointshop_desc,nd->u.shop.pointshop_desc);
+				clif->broadcast(&sd->bl, output, strlen(output) + 1, 0x10, SELF);
+				switch(nd->u.shop.pointshop_scriptstr[0]) {
+					case '#':
+						if (nd->u.shop.pointshop_scriptstr[1] == '#')
+							count = pc_readaccountreg2(sd, nd->u.shop.pointshop_scriptstr);
+						else
+							count = pc_readaccountreg(sd, nd->u.shop.pointshop_scriptstr);
+						break;
+					case '@':
+					default:
+						count = pc_readglobalreg(sd, nd->u.shop.pointshop_scriptstr);
+						break;
+				}
+				sprintf(output, msg_txt(455),count,nd->u.shop.pointshop_desc);
+				clif->colormes(sd->fd,COLOR_DEFAULT,output);
+				clif->npcbuysell(sd,nd->bl.id);
+				break;
+			}
 		case CASHSHOP:
 			clif->cashshop_show(sd,nd);
 			break;
@@ -1531,7 +1554,7 @@ int npc_buylist(struct map_session_data* sd, int n, unsigned short* item_list) {
 	if( nd->master_nd != NULL ) //Script-based shops.
 		return npc->buylist_sub(sd,n,item_list,nd->master_nd);
 
-	switch(nd->subtype) {
+	switch(nd->subtype){	//[Dastgir Pojee]
 		case SHOP:
 			if (z > (double)sd->status.zeny)
 				return 1;	// Not enough Zeny
@@ -1575,7 +1598,7 @@ int npc_buylist(struct map_session_data* sd, int n, unsigned short* item_list) {
 	if( pc->inventoryblank(sd) < new_ )
 		return 3;	// Not enough space to store items
 
-	switch(nd->subtype) {
+	switch(nd->subtype){	//[Dastgir Pojee]
 		case SHOP:
 			pc->payzeny(sd, (int)z, LOG_TYPE_NPC, NULL);
 			break;
@@ -2322,7 +2345,7 @@ const char* npc_parse_shop(char* w1, char* w2, char* w3, char* w4, const char* s
 			break;
 		}
 		case POINTSHOP:
-			if (sscanf(p, ",\"%31[^\"]\",\"%[^\"]\"", ps_scriptstr,ps_desc) != 2) {
+			if (sscanf(p, ",\"%31[^\"]\":\"%[^\"]\"", ps_scriptstr,ps_desc) != 2) {
 				ShowError("npc_parse_shop: Invalid VariableCost/Description definition in file '%s', line '%d'. Ignoring the rest of the line...\n * w1=%s\n * w2=%s\n * w3=%s\n * w4=%s\n", filepath, strline(buffer,start-buffer), w1, w2, w3, w4);
 				return strchr(start, '\n'); // skip and continue
 			}
@@ -2394,8 +2417,8 @@ const char* npc_parse_shop(char* w1, char* w2, char* w3, char* w4, const char* s
 	memcpy(nd->u.shop.shop_item, items, sizeof(struct npc_item_list)*i);
 	nd->u.shop.count = i;
 	nd->u.shop.itemshop_nameid = is_nameid; // Item shop currency
-	nd->u.shop.pointshop_scriptstr = ps_scriptstr; // Point shop currency
-	nd->u.shop.pointshop_desc = ps_desc;	//Point Shop Currency Name
+	safestrncpy(nd->u.shop.pointshop_scriptstr,ps_scriptstr,sizeof(nd->u.shop.pointshop_scriptstr)); // Point shop currency
+	safestrncpy(nd->u.shop.pointshop_desc,ps_desc,sizeof(nd->u.shop.pointshop_desc)); //Point Shop Currency Name
 	nd->bl.prev = nd->bl.next = NULL;
 	nd->bl.m = m;
 	nd->bl.x = x;

@@ -282,8 +282,8 @@ what these floating NPC objects are for. More on that below.
 -%TAB%itemshop%TAB%<NPC Name>%TAB%<sprite id>,<costitemid>,<itemid>:<price>{,<itemid>:<price>...}
 <map name>,<x>,<y>,<facing>%TAB%itemshop%TAB%<NPC Name>%TAB%<sprite id>,<costitemid>,<itemid>:<price>{,<itemid>:<price>...}
 
--%TAB%pointshop%TAB%<NPC Name>%TAB%<sprite id>,"<costvariable>","<costdesc>",<itemid>:<price>{,<itemid>:<price>...}
-<map name>,<x>,<y>,<facing>%TAB%pointshop%TAB%<NPC Name>%TAB%<sprite id>,"<costvariable>","<costdesc>",<itemid>:<price>{,<itemid>:<price>...}
+-%TAB%pointshop%TAB%<NPC Name>%TAB%<sprite id>,"<costvariable>":"<costdesc>",<itemid>:<price>{,<itemid>:<price>...}
+<map name>,<x>,<y>,<facing>%TAB%pointshop%TAB%<NPC Name>%TAB%<sprite id>,"<costvariable>":"<costdesc>",<itemid>:<price>{,<itemid>:<price>...}
 
 This will define a shop NPC, which, when triggered (which can only be done 
 by clicking) will cause a shop window to come up. No code whatsoever runs 
