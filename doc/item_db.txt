@@ -48,7 +48,10 @@ item_db: (
 		nomail: true/false            (boolean, defaults to false)
 		noauction: true/false         (boolean, defaults to false)
 	}
-	Nouse: [flag, group]          (int, defaults to 0)
+	Nouse: {                      (defaults to no restrictions)
+		override: GroupID             (int, defaults to 100)
+		sitting: true/false           (boolean, defaults to false)
+	}
 	Stack: [amount, flag]         (int, defaults to 0)
 	Sprite: SpriteID              (int, defaults to 0)
 	Script: <"
@@ -266,12 +269,17 @@ Trade: Item trade restrictions. If this block is omitted, the item will have no
 		nomail: Item can't be attached to mail messages.
 		noauction: Item can't be auctioned.
 
-Nouse: Defines if an item cannot be used under certain circumstances
-       Syntax: [flag, group]
-       group specifies the group level to override the flag setting.
-    Available flags:
-	   1: Item cannot be used while sitting
-       X: More to come soon [TODO]
+Nouse: Defines if an item cannot be used under certain circumstances. If this
+       block is omitted, there will be no usage restrictions.
+       All the settings in this group are boolean values, unless otherwise
+       specified. Default value is false (restriction not set) for any missing
+       setting.
+
+	Allowed settings in this block are:
+		override: If specified and in the interval [1:100], sets the
+		          minimum GM Group ID that can bypass the defined usage
+		          restrictions. This is an integer value.
+		sitting: Item can't be used while sitting.
 
 Stack: Prevents an item to be stacked more than x times in given
        inventory types. Generally used by 3rd class related skill items.

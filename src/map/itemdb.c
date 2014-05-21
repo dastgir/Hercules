@@ -1841,12 +1841,20 @@ int itemdb_readdb_libconfig_sub(config_setting_t *it, int n, const char *source)
 	}
 
 	if ((t = libconfig->setting_get_member(it, "Nouse"))) {
-		if (config_setting_is_aggregate(t)) {
-			if (libconfig->setting_length(t) >= 1)
-				id.item_usage.flag = libconfig->setting_get_int_elem(t, 0);
-			if (libconfig->setting_length(t) >= 2)
-				id.item_usage.override = libconfig->setting_get_int_elem(t, 1);
-		} else {
+		if (config_setting_is_group(t)) {
+			config_setting_t *nt = NULL;
+
+			if ((nt = libconfig->setting_get_member(t, "override"))) {
+				id.item_usage.override = libconfig->setting_get_int(nt);
+			}
+
+			if ((nt = libconfig->setting_get_member(t, "sitting"))) {
+				id.item_usage.flag &= ~INR_SITTING;
+				if (libconfig->setting_get_bool(nt))
+					id.item_usage.flag |= INR_SITTING;
+			}
+
+		} else { // Fallback to int if it's not a group
 			id.item_usage.flag = libconfig->setting_get_int(t);
 		}
 	}
