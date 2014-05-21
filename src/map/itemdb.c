@@ -521,39 +521,39 @@ int itemdb_isstackable2(struct item_data *data)
  * Trade Restriction functions [Skotlex]
  *------------------------------------------*/
 int itemdb_isdropable_sub(struct item_data *item, int gmlv, int unused) {
-	return (item && (!(item->flag.trade_restriction&1) || gmlv >= item->gm_lv_trade_override));
+	return (item && (!(item->flag.trade_restriction&ITR_NODROP) || gmlv >= item->gm_lv_trade_override));
 }
 
 int itemdb_cantrade_sub(struct item_data* item, int gmlv, int gmlv2) {
-	return (item && (!(item->flag.trade_restriction&2) || gmlv >= item->gm_lv_trade_override || gmlv2 >= item->gm_lv_trade_override));
+	return (item && (!(item->flag.trade_restriction&ITR_NOTRADE) || gmlv >= item->gm_lv_trade_override || gmlv2 >= item->gm_lv_trade_override));
 }
 
 int itemdb_canpartnertrade_sub(struct item_data* item, int gmlv, int gmlv2) {
-	return (item && (item->flag.trade_restriction&4 || gmlv >= item->gm_lv_trade_override || gmlv2 >= item->gm_lv_trade_override));
+	return (item && (item->flag.trade_restriction&ITR_PARTNEROVERRIDE || gmlv >= item->gm_lv_trade_override || gmlv2 >= item->gm_lv_trade_override));
 }
 
 int itemdb_cansell_sub(struct item_data* item, int gmlv, int unused) {
-	return (item && (!(item->flag.trade_restriction&8) || gmlv >= item->gm_lv_trade_override));
+	return (item && (!(item->flag.trade_restriction&ITR_NOSELLTONPC) || gmlv >= item->gm_lv_trade_override));
 }
 
 int itemdb_cancartstore_sub(struct item_data* item, int gmlv, int unused) {
-	return (item && (!(item->flag.trade_restriction&16) || gmlv >= item->gm_lv_trade_override));
+	return (item && (!(item->flag.trade_restriction&ITR_NOCART) || gmlv >= item->gm_lv_trade_override));
 }
 
 int itemdb_canstore_sub(struct item_data* item, int gmlv, int unused) {
-	return (item && (!(item->flag.trade_restriction&32) || gmlv >= item->gm_lv_trade_override));
+	return (item && (!(item->flag.trade_restriction&ITR_NOSTORAGE) || gmlv >= item->gm_lv_trade_override));
 }
 
 int itemdb_canguildstore_sub(struct item_data* item, int gmlv, int unused) {
-	return (item && (!(item->flag.trade_restriction&64) || gmlv >= item->gm_lv_trade_override));
+	return (item && (!(item->flag.trade_restriction&ITR_NOGSTORAGE) || gmlv >= item->gm_lv_trade_override));
 }
 
 int itemdb_canmail_sub(struct item_data* item, int gmlv, int unused) {
-	return (item && (!(item->flag.trade_restriction&128) || gmlv >= item->gm_lv_trade_override));
+	return (item && (!(item->flag.trade_restriction&ITR_NOMAIL) || gmlv >= item->gm_lv_trade_override));
 }
 
 int itemdb_canauction_sub(struct item_data* item, int gmlv, int unused) {
-	return (item && (!(item->flag.trade_restriction&256) || gmlv >= item->gm_lv_trade_override));
+	return (item && (!(item->flag.trade_restriction&ITR_NOAUCTION) || gmlv >= item->gm_lv_trade_override));
 }
 
 int itemdb_isrestricted(struct item* item, int gmlv, int gmlv2, int (*func)(struct item_data*, int, int))
@@ -1424,10 +1424,10 @@ int itemdb_validate_entry(struct item_data *entry, int n, const char *source) {
 		entry->type = IT_ETC;
 	}
 
-	if (entry->flag.trade_restriction < 0 || entry->flag.trade_restriction > 511) { // FIXME[Haru]: remove hardcoded value '511'
+	if (entry->flag.trade_restriction < 0 || entry->flag.trade_restriction > ITR_ALL) {
 		ShowWarning("itemdb_validate_entry: Invalid trade restriction flag 0x%x for item %d (%s) in '%s', defaulting to none.\n",
 		            entry->flag.trade_restriction, entry->nameid, entry->jname, source);
-		entry->flag.trade_restriction = 0;
+		entry->flag.trade_restriction = ITR_NONE;
 	}
 
 	if (entry->gm_lv_trade_override < 0) {
@@ -1576,7 +1576,7 @@ int itemdb_readdb_sql_sub(Sql *handle, int n, const char *source) {
 	SQL->GetData(handle, 21, &data, NULL); id.flag.bindonequip = data && atoi(data) ? 1 : 0;
 	SQL->GetData(handle, 22, &data, NULL); id.flag.buyingstore = data && atoi(data) ? 1 : 0;
 	SQL->GetData(handle, 23, &data, NULL); id.delay = data ? atoi(data) : 0;
-	SQL->GetData(handle, 24, &data, NULL); id.flag.trade_restriction = data ? atoi(data) : 0;
+	SQL->GetData(handle, 24, &data, NULL); id.flag.trade_restriction = data ? atoi(data) : ITR_NONE;
 	SQL->GetData(handle, 25, &data, NULL); id.gm_lv_trade_override = data ? atoi(data) : 0;
 	SQL->GetData(handle, 26, &data, NULL); id.item_usage.flag = data ? atoi(data) : 0;
 	SQL->GetData(handle, 27, &data, NULL); id.item_usage.override = data ? atoi(data) : 0;
