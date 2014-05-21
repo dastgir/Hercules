@@ -1440,10 +1440,10 @@ int itemdb_validate_entry(struct item_data *entry, int n, const char *source) {
 		entry->gm_lv_trade_override = 100;
 	}
 
-	if (entry->item_usage.flag > 1) { // FIXME[Haru]: Remove hardcoded value '1'
+	if (entry->item_usage.flag > INR_ALL) {
 		ShowWarning("itemdb_validate_entry: Invalid nouse flag 0x%x for item %d (%s) in '%s', defaulting to none.\n",
 		            entry->item_usage.flag, entry->nameid, entry->jname, source);
-		entry->item_usage.flag = 0;
+		entry->item_usage.flag = INR_NONE;
 	}
 
 	if (entry->item_usage.override < 0) {
@@ -1578,7 +1578,7 @@ int itemdb_readdb_sql_sub(Sql *handle, int n, const char *source) {
 	SQL->GetData(handle, 23, &data, NULL); id.delay = data ? atoi(data) : 0;
 	SQL->GetData(handle, 24, &data, NULL); id.flag.trade_restriction = data ? atoi(data) : ITR_NONE;
 	SQL->GetData(handle, 25, &data, NULL); id.gm_lv_trade_override = data ? atoi(data) : 0;
-	SQL->GetData(handle, 26, &data, NULL); id.item_usage.flag = data ? atoi(data) : 0;
+	SQL->GetData(handle, 26, &data, NULL); id.item_usage.flag = data ? atoi(data) : INR_NONE;
 	SQL->GetData(handle, 27, &data, NULL); id.item_usage.override = data ? atoi(data) : 0;
 	SQL->GetData(handle, 28, &data, NULL); id.stack.amount = data ? atoi(data) : 0;
 	SQL->GetData(handle, 29, &data, NULL);
