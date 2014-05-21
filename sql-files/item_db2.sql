@@ -1,34 +1,33 @@
-#
-# Table structure for table `item_db2`
-#
+--
+-- Table structure for table `item_db2`
+--
 
 DROP TABLE IF EXISTS `item_db2`;
 CREATE TABLE `item_db2` (
-   `id` smallint(5) unsigned NOT NULL DEFAULT '0',
-   `name_english` varchar(50) NOT NULL DEFAULT '',
-   `name_japanese` varchar(50) NOT NULL DEFAULT '',
-   `type` tinyint(2) unsigned NOT NULL DEFAULT '0',
-   `price_buy` mediumint(10) DEFAULT NULL,
-   `price_sell` mediumint(10) DEFAULT NULL,
-   `weight` smallint(5) unsigned DEFAULT NULL,
-   `atk` smallint(5) unsigned DEFAULT NULL,
-   `matk` smallint(5) unsigned DEFAULT NULL,
-   `defence` smallint(5) unsigned DEFAULT NULL,
-   `range` tinyint(2) unsigned DEFAULT NULL,
-   `slots` tinyint(2) unsigned DEFAULT NULL,
-   `equip_jobs` int(12) unsigned DEFAULT NULL,
-   `equip_upper` tinyint(8) unsigned DEFAULT NULL,
-   `equip_genders` tinyint(2) unsigned DEFAULT NULL,
-   `equip_locations` smallint(4) unsigned DEFAULT NULL,
-   `weapon_level` tinyint(2) unsigned DEFAULT NULL,
-   `equip_level_min` smallint(5) unsigned DEFAULT NULL,
-   `equip_level_max` smallint(5) unsigned DEFAULT NULL,
-   `refineable` tinyint(1) unsigned DEFAULT NULL,
-   `view` smallint(3) unsigned DEFAULT NULL,
-   `bindonequip` tinyint(1) unsigned DEFAULT NULL,
-   `script` text,
-   `equip_script` text,
-   `unequip_script` text,
- PRIMARY KEY (`id`)
+  `id` SMALLINT(5) UNSIGNED NOT NULL DEFAULT '0',
+  `name_english` VARCHAR(50) NOT NULL DEFAULT '',
+  `name_japanese` VARCHAR(50) NOT NULL DEFAULT '',
+  `type` TINYINT(2) UNSIGNED NOT NULL DEFAULT '0',
+  `price_buy` MEDIUMINT(10) DEFAULT NULL,
+  `price_sell` MEDIUMINT(10) DEFAULT NULL,
+  `weight` SMALLINT(5) UNSIGNED DEFAULT NULL,
+  `atk` SMALLINT(5) UNSIGNED DEFAULT NULL,
+  `matk` SMALLINT(5) UNSIGNED DEFAULT NULL,
+  `defence` SMALLINT(5) UNSIGNED DEFAULT NULL,
+  `range` TINYINT(2) UNSIGNED DEFAULT NULL,
+  `slots` TINYINT(2) UNSIGNED DEFAULT NULL,
+  `equip_jobs` INT(12) UNSIGNED DEFAULT NULL,
+  `equip_upper` TINYINT(8) UNSIGNED DEFAULT NULL,
+  `equip_genders` TINYINT(2) UNSIGNED DEFAULT NULL,
+  `equip_locations` SMALLINT(4) UNSIGNED DEFAULT NULL,
+  `weapon_level` TINYINT(2) UNSIGNED DEFAULT NULL,
+  `equip_level_min` SMALLINT(5) UNSIGNED DEFAULT NULL,
+  `equip_level_max` SMALLINT(5) UNSIGNED DEFAULT NULL,
+  `refineable` TINYINT(1) UNSIGNED DEFAULT NULL,
+  `view` SMALLINT(3) UNSIGNED DEFAULT NULL,
+  `bindonequip` TINYINT(1) UNSIGNED DEFAULT NULL,
+  `script` TEXT,
+  `equip_script` TEXT,
+  `unequip_script` TEXT,
+  PRIMARY KEY (`id`)
 ) ENGINE=MyISAM;
-

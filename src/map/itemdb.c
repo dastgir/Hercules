@@ -1555,6 +1555,7 @@ int itemdb_gendercheck(struct item_data *id)
  */
 int itemdb_validate_entry(struct item_data *entry, int n, const char *source) {
 	struct item_data *item;
+	bool item_error = false;
 
 	if( entry->nameid <= 0 || entry->nameid >= MAX_ITEMDB ) {
 		ShowWarning("itemdb_validate_entry: Invalid item ID %d in entry %d of '%s', allowed values 0 < ID < %d (MAX_ITEMDB), skipping.\n",
@@ -1611,6 +1612,47 @@ int itemdb_validate_entry(struct item_data *entry, int n, const char *source) {
 		entry->type = IT_ETC;
 	}
 
+	if (entry->flag.trade_restriction < 0 || entry->flag.trade_restriction > 511){
+		ShowWarning("itemdb_validate_entry:  Invalid Trade Flag %d for Item %d of \"%s\", skipping..\n", entry->flag.trade_restriction, entry->nameid, source);
+		item_error = true;
+	}
+
+	if (entry->gm_lv_trade_override < 0){
+		ShowWarning("itemdb_validate_entry:  Invalid  override GM level(Trade) %d for Item %d of \"%s\", skipping..\n", entry->gm_lv_trade_override, entry->nameid, source);
+		item_error = true;
+	}
+
+	if (entry->item_usage.flag > 1){
+		ShowWarning("itemdb_validate_entry:  Invalid Nouse Flag %d for Item %d of \"%s\", skipping..\n", entry->item_usage.flag, entry->nameid, source);
+		item_error = true;
+	}
+
+	if (entry->item_usage.override < 0){
+		ShowWarning("itemdb_validate_entry:  Invalid  override GM level(Nouse) %d for Item %d of \"%s\", skipping..\n", entry->item_usage.override, entry->nameid, source);
+		item_error = true;
+	}
+
+	if (entry->stack.amount>0 && !itemdb->isstackable2(entry)){
+		ShowWarning("itemdb_validate_entry: ItemID %d(Type:%d) is not stackable, skipping..\n", entry->nameid,entry->type);
+		item_error = true;
+	}
+
+	if (item_error == true){
+		if (entry->script) {
+			script->free_code(entry->script);
+			entry->script = NULL;
+		}
+		if (entry->equip_script) {
+			script->free_code(entry->equip_script);
+			entry->equip_script = NULL;
+		}
+		if (entry->unequip_script) {
+			script->free_code(entry->unequip_script);
+			entry->unequip_script = NULL;
+		}
+		return 0;
+	}
+	
 	entry->wlv = cap_value(entry->wlv, REFINE_TYPE_ARMOR, REFINE_TYPE_MAX);
 
 	if( !entry->elvmax )
@@ -1621,8 +1663,11 @@ int itemdb_validate_entry(struct item_data *entry, int n, const char *source) {
 	if( entry->type != IT_ARMOR && entry->type != IT_WEAPON && !entry->flag.no_refine )
 		entry->flag.no_refine = 1;
 
-	entry->flag.available = 1;
-	entry->view_id = 0;
+	if (entry->flag.available != 1){
+		entry->flag.available = 1;
+		entry->view_id = 0;
+	}
+	
 	entry->sex = itemdb->gendercheck(entry); //Apply gender filtering.
 
 	// Validated. Finally insert it
@@ -1685,6 +1730,15 @@ int itemdb_readdb_sql_sub(Sql *handle, int n, const char *source) {
 	 * `refineable`      tinyint(1)    unsigned          DEFAULT NULL
 	 * `view`            smallint(3)   unsigned          DEFAULT NULL
 	 * `bindonequip`     tinyint(1)    unsigned          DEFAULT NULL
+	 * `buyingstore`     tinyint(1)             NOT NULL DEFAULT '0'
+	 * `delay`           mediumint(9)           NOT NULL DEFAULT '0'
+	 * `trade_flag`      smallint(4)            NOT NULL DEFAULT '0'
+	 * `trade_group`     smallint(4)            NOT NULL DEFAULT NULL
+	 * `nouse_flag`      smallint(4)            NOT NULL DEFAULT '0'
+	 * `nouse_group`     smallint(4)            NOT NULL DEFAULT NULL
+	 * `stack_amount`    mediumint(6)           NOT NULL DEFAULT '0'
+	 * `stack_flag`      smallint(2)            NOT NULL DEFAULT '0'
+	 * `sprite`          mediumint(6)           NOT NULL DEFAULT '0'
 	 * `script`          text
 	 * `equip_script`    text
 	 * `unequip_script`  text
@@ -1711,9 +1765,28 @@ int itemdb_readdb_sql_sub(Sql *handle, int n, const char *source) {
 	SQL->GetData(handle, 19, &data, NULL); id.flag.no_refine = data && atoi(data) ? 0 : 1;
 	SQL->GetData(handle, 20, &data, NULL); id.look = data ? atoi(data) : 0;
 	SQL->GetData(handle, 21, &data, NULL); id.flag.bindonequip = data && atoi(data) ? 1 : 0;
-	SQL->GetData(handle, 22, &data, NULL); id.script = data && *data ? script->parse(data, source, -id.nameid, SCRIPT_IGNORE_EXTERNAL_BRACKETS, NULL) : NULL;
-	SQL->GetData(handle, 23, &data, NULL); id.equip_script = data && *data ? script->parse(data, source, -id.nameid, SCRIPT_IGNORE_EXTERNAL_BRACKETS, NULL) : NULL;
-	SQL->GetData(handle, 24, &data, NULL); id.unequip_script = data && *data ? script->parse(data, source, -id.nameid, SCRIPT_IGNORE_EXTERNAL_BRACKETS, NULL) : NULL;
+	SQL->GetData(handle, 22, &data, NULL); id.flag.buyingstore = data && atoi(data) ? 1 : 0;
+	SQL->GetData(handle, 23, &data, NULL); id.delay = data ? atoi(data) : 0;
+	SQL->GetData(handle, 24, &data, NULL); id.flag.trade_restriction = data ? atoi(data) : 0;
+	SQL->GetData(handle, 25, &data, NULL); id.gm_lv_trade_override = data ? atoi(data) : (int)NULL;
+	SQL->GetData(handle, 26, &data, NULL); id.item_usage.flag = data ? atoi(data) : 0;
+	SQL->GetData(handle, 27, &data, NULL); id.item_usage.override = data ? atoi(data) : (int)NULL;
+	SQL->GetData(handle, 28, &data, NULL); id.stack.amount = data ? atoi(data) : 0;
+	SQL->GetData(handle, 29, &data, NULL);
+	if (atoi(data)){
+		id.stack.inventory = (atoi(data)&1)!=0;
+		id.stack.cart = (atoi(data)&2)!=0;
+		id.stack.storage = (atoi(data)&4)!=0;
+		id.stack.guildstorage = (atoi(data)&8)!=0;
+	}
+	SQL->GetData(handle, 30, &data, NULL);
+	if (atoi(data)){
+		id.flag.available = 1;
+		id.view_id = atoi(data);
+	}
+	SQL->GetData(handle, 31, &data, NULL); id.script = data && *data ? script->parse(data, source, -id.nameid, SCRIPT_IGNORE_EXTERNAL_BRACKETS, NULL) : NULL;
+	SQL->GetData(handle, 32, &data, NULL); id.equip_script = data && *data ? script->parse(data, source, -id.nameid, SCRIPT_IGNORE_EXTERNAL_BRACKETS, NULL) : NULL;
+	SQL->GetData(handle, 33, &data, NULL); id.unequip_script = data && *data ? script->parse(data, source, -id.nameid, SCRIPT_IGNORE_EXTERNAL_BRACKETS, NULL) : NULL;
 
 	return itemdb->validate_entry(&id, n, source);
 }
@@ -1762,6 +1835,12 @@ int itemdb_readdb_libconfig_sub(config_setting_t *it, int n, const char *source)
 	 * Refine: Refineable
 	 * View: View ID
 	 * BindOnEquip: (true or false)
+	 * BuyingStore: (true or false)
+	 * Delay: Delay to use item
+	 * Trade: [Trade Flag, Group to Override]
+	 * Nouse: [Trade Flag, Group to Override]
+	 * Stack: [Stackable Amount, Stack Type]
+	 * Sprite: SpriteID
 	 * Script: <"
 	 *     Script
 	 *     (it can be multi-line)
@@ -1878,6 +1957,56 @@ int itemdb_readdb_libconfig_sub(config_setting_t *it, int n, const char *source)
 	if( (t = libconfig->setting_get_member(it, "BindOnEquip")) )
 		id.flag.bindonequip = libconfig->setting_get_bool(t) ? 1 : 0;
 	
+	if ( (t = libconfig->setting_get_member(it, "BuyingStore")) )
+		id.flag.buyingstore = libconfig->setting_get_bool(t) ? 1 : 0;
+
+	if (libconfig->setting_lookup_int(it, "Delay", &i32) && i32 >= 0)
+		id.delay = i32;
+	
+	if ( (t = libconfig->setting_get_member(it, "Trade")) ) {
+		if (config_setting_is_aggregate(t) && libconfig->setting_length(t) >= 2) {
+			id.flag.trade_restriction = libconfig->setting_get_int_elem(t, 0);
+			id.gm_lv_trade_override = libconfig->setting_get_int_elem(t, 1);
+		}
+		else {
+			ShowWarning("itemdb_readdb_libconfig_sub: Invalid Trade Format for Item %d of \"%s\", skipping.\n", id.nameid, source);
+			return 0;
+		}
+	}
+
+	if ((t = libconfig->setting_get_member(it, "Nouse"))) {
+		if (config_setting_is_aggregate(t) && libconfig->setting_length(t) >= 2) {
+			id.item_usage.flag = libconfig->setting_get_int_elem(t, 0);
+			id.item_usage.override = libconfig->setting_get_int_elem(t, 1);
+		}
+		else {
+			ShowWarning("itemdb_readdb_libconfig_sub: Invalid Nouse Format for Item %d of \"%s\", skipping.\n", id.nameid, source);
+			return 0;
+		}
+	}
+
+	if ((t = libconfig->setting_get_member(it, "Stack"))) {
+		if (config_setting_is_aggregate(t) && libconfig->setting_length(t) >= 2) {
+			int stack_flag = libconfig->setting_get_int_elem(t, 1);
+			id.stack.amount = (unsigned short)libconfig->setting_get_int_elem(t, 0);
+			if (id.stack.amount){
+				id.stack.inventory = (stack_flag&1)!=0;
+				id.stack.cart = (stack_flag&2)!=0;
+				id.stack.storage = (stack_flag&4)!=0;
+				id.stack.guildstorage = (stack_flag&8)!=0;
+			}
+		}
+		else {
+			ShowWarning("itemdb_readdb_libconfig_sub: Invalid Stack Format for Item %d of \"%s\", skipping.\n", id.nameid, source);
+			return 0;
+		}
+	}
+
+	if (libconfig->setting_lookup_int(it, "Sprite", &i32) && i32 >= 0){
+		id.flag.available = 1;
+		id.view_id = i32;
+	}
+	
 	if( libconfig->setting_lookup_string(it, "Script", &str) )
 		id.script = *str ? script->parse(str, source, -id.nameid, SCRIPT_IGNORE_EXTERNAL_BRACKETS, NULL) : NULL;
 
@@ -1947,7 +2076,10 @@ int itemdb_readdb_sql(const char *tablename) {
 				" `matk`, `defence`, `range`, `slots`,"
 				" `equip_jobs`, `equip_upper`, `equip_genders`, `equip_locations`,"
 				" `weapon_level`, `equip_level_min`, `equip_level_max`, `refineable`,"
-				" `view`, `bindonequip`, `script`, `equip_script`, `unequip_script`"
+				" `view`, `bindonequip`, `buyingstore`, `delay`,"
+				" `trade_flag`, `trade_group`, `nouse_flag`, `nouse_group`,"
+				" `stack_amount`, `stack_flag`, `sprite`, `script`,"
+				" `equip_script`, `unequip_script`"
 				"FROM `%s`", tablename) ) {
 		Sql_ShowDebug(map->mysql_handle);
 		return 0;
