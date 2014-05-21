@@ -601,39 +601,6 @@ int itemdb_isidentified2(struct item_data *data) {
 	}
 }
 
-
-/*==========================================
- * Search by name for the override flags available items
- * (Give item another sprite)
- *------------------------------------------*/
-bool itemdb_read_itemavail(char* str[], int columns, int current)
-{// <nameid>,<sprite>
-	int nameid, sprite;
-	struct item_data *id;
-
-	nameid = atoi(str[0]);
-
-	if( ( id = itemdb->exists(nameid) ) == NULL )
-	{
-		ShowWarning("itemdb_read_itemavail: Invalid item id %d.\n", nameid);
-		return false;
-	}
-
-	sprite = atoi(str[1]);
-
-	if( sprite > 0 )
-	{
-		id->flag.available = 1;
-		id->view_id = sprite;
-	}
-	else
-	{
-		id->flag.available = 0;
-	}
-
-	return true;
-}
-
 void itemdb_read_groups(void) {
 	config_t item_group_conf;
 	config_setting_t *itg = NULL, *it = NULL;
@@ -1216,163 +1183,6 @@ void itemdb_read_chains(void) {
 		itemdb->chain_cache[ECC_ORE] = i;
 	
 	ShowStatus("Done reading '"CL_WHITE"%lu"CL_RESET"' entries in '"CL_WHITE"%s"CL_RESET"'.\n", count, config_filename);
-}
-
-
-/*==========================================
- * Reads item trade restrictions [Skotlex]
- *------------------------------------------*/
-bool itemdb_read_itemtrade(char* str[], int columns, int current)
-{// <nameid>,<mask>,<gm level>
-	int nameid, flag, gmlv;
-	struct item_data *id;
-
-	nameid = atoi(str[0]);
-
-	if( ( id = itemdb->exists(nameid) ) == NULL )
-	{
-		//ShowWarning("itemdb_read_itemtrade: Invalid item id %d.\n", nameid);
-		//return false;
-		// FIXME: item_trade.txt contains items, which are commented in item database.
-		return true;
-	}
-
-	flag = atoi(str[1]);
-	gmlv = atoi(str[2]);
-
-	if( flag < 0 || flag > 511 ) {//Check range
-		ShowWarning("itemdb_read_itemtrade: Invalid trading mask %d for item id %d.\n", flag, nameid);
-		return false;
-	}
-	if( gmlv < 1 )
-	{
-		ShowWarning("itemdb_read_itemtrade: Invalid override GM level %d for item id %d.\n", gmlv, nameid);
-		return false;
-	}
-
-	id->flag.trade_restriction = flag;
-	id->gm_lv_trade_override = gmlv;
-
-	return true;
-}
-
-/*==========================================
- * Reads item delay amounts [Paradox924X]
- *------------------------------------------*/
-bool itemdb_read_itemdelay(char* str[], int columns, int current)
-{// <nameid>,<delay>
-	int nameid, delay;
-	struct item_data *id;
-
-	nameid = atoi(str[0]);
-
-	if( ( id = itemdb->exists(nameid) ) == NULL )
-	{
-		ShowWarning("itemdb_read_itemdelay: Invalid item id %d.\n", nameid);
-		return false;
-	}
-
-	delay = atoi(str[1]);
-
-	if( delay < 0 )
-	{
-		ShowWarning("itemdb_read_itemdelay: Invalid delay %d for item id %d.\n", id->delay, nameid);
-		return false;
-	}
-
-	id->delay = delay;
-
-	return true;
-}
-
-/*==================================================================
- * Reads item stacking restrictions
- *----------------------------------------------------------------*/
-bool itemdb_read_stack(char* fields[], int columns, int current)
-{// <item id>,<stack limit amount>,<type>
-	unsigned short nameid, amount;
-	unsigned int type;
-	struct item_data* id;
-
-	nameid = (unsigned short)strtoul(fields[0], NULL, 10);
-
-	if( ( id = itemdb->exists(nameid) ) == NULL )
-	{
-		ShowWarning("itemdb_read_stack: Unknown item id '%hu'.\n", nameid);
-		return false;
-	}
-
-	if( !itemdb->isstackable2(id) )
-	{
-		ShowWarning("itemdb_read_stack: Item id '%hu' is not stackable.\n", nameid);
-		return false;
-	}
-
-	amount = (unsigned short)strtoul(fields[1], NULL, 10);
-	type = (unsigned int)strtoul(fields[2], NULL, 10);
-
-	if( !amount )
-	{// ignore
-		return true;
-	}
-
-	id->stack.amount       = amount;
-	id->stack.inventory    = (type&1)!=0;
-	id->stack.cart         = (type&2)!=0;
-	id->stack.storage      = (type&4)!=0;
-	id->stack.guildstorage = (type&8)!=0;
-
-	return true;
-}
-
-
-/// Reads items allowed to be sold in buying stores
-bool itemdb_read_buyingstore(char* fields[], int columns, int current)
-{// <nameid>
-	int nameid;
-	struct item_data* id;
-
-	nameid = atoi(fields[0]);
-
-	if( ( id = itemdb->exists(nameid) ) == NULL )
-	{
-		ShowWarning("itemdb_read_buyingstore: Invalid item id %d.\n", nameid);
-		return false;
-	}
-
-	if( !itemdb->isstackable2(id) )
-	{
-		ShowWarning("itemdb_read_buyingstore: Non-stackable item id %d cannot be enabled for buying store.\n", nameid);
-		return false;
-	}
-
-	id->flag.buyingstore = true;
-
-	return true;
-}
-
-/*******************************************
-** Item usage restriction (item_nouse.txt)
-********************************************/
-bool itemdb_read_nouse(char* fields[], int columns, int current)
-{// <nameid>,<flag>,<override>
-	int nameid, flag, override;
-	struct item_data* id;
-
-	nameid = atoi(fields[0]);
-	
-	if( ( id = itemdb->exists(nameid) ) == NULL ) {
-		ShowWarning("itemdb_read_nouse: Invalid item id %d.\n", nameid);
-		return false;
-	}
-	
-	flag = atoi(fields[1]);
-	override = atoi(fields[2]);
-
-	id->item_usage.flag = flag;
-	id->item_usage.override = override;
-
-	return true;
 }
 
 /**
@@ -2152,13 +1962,6 @@ void itemdb_read(bool minimal) {
 	itemdb->read_groups();
 	itemdb->read_chains();
 	itemdb->read_packages();
-	
-	sv->readdb(map->db_path, "item_avail.txt",             ',', 2, 2, -1, itemdb->read_itemavail);
-	sv->readdb(map->db_path, DBPATH"item_trade.txt",       ',', 3, 3, -1, itemdb->read_itemtrade);
-	sv->readdb(map->db_path, DBPATH"item_delay.txt",       ',', 2, 2, -1, itemdb->read_itemdelay);
-	sv->readdb(map->db_path, "item_stack.txt",             ',', 3, 3, -1, itemdb->read_stack);
-	sv->readdb(map->db_path, DBPATH"item_buyingstore.txt", ',', 1, 1, -1, itemdb->read_buyingstore);
-	sv->readdb(map->db_path, "item_nouse.txt",             ',', 3, 3, -1, itemdb->read_nouse);
 
 }
 
@@ -2436,12 +2239,6 @@ void itemdb_defaults(void) {
 	itemdb->isrestricted = itemdb_isrestricted;
 	itemdb->isidentified = itemdb_isidentified;
 	itemdb->isidentified2 = itemdb_isidentified2;
-	itemdb->read_itemavail = itemdb_read_itemavail;
-	itemdb->read_itemtrade = itemdb_read_itemtrade;
-	itemdb->read_itemdelay = itemdb_read_itemdelay;
-	itemdb->read_stack = itemdb_read_stack;
-	itemdb->read_buyingstore = itemdb_read_buyingstore;
-	itemdb->read_nouse = itemdb_read_nouse;
 	itemdb->combo_split_atoi = itemdb_combo_split_atoi;
 	itemdb->read_combos = itemdb_read_combos;
 	itemdb->gendercheck = itemdb_gendercheck;
