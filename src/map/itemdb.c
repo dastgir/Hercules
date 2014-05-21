@@ -1775,12 +1775,67 @@ int itemdb_readdb_libconfig_sub(config_setting_t *it, int n, const char *source)
 		id.delay = i32;
 	
 	if ( (t = libconfig->setting_get_member(it, "Trade")) ) {
-		if (config_setting_is_aggregate(t)) {
-			if (libconfig->setting_length(t) >= 1)
-				id.flag.trade_restriction = libconfig->setting_get_int_elem(t, 0);
-			if (libconfig->setting_length(t) >= 2)
-				id.gm_lv_trade_override = libconfig->setting_get_int_elem(t, 1);
-		} else {
+		if (config_setting_is_group(t)) {
+			config_setting_t *tt = NULL;
+
+			if ((tt = libconfig->setting_get_member(t, "override"))) {
+				id.gm_lv_trade_override = libconfig->setting_get_int(tt);
+			}
+
+			if ((tt = libconfig->setting_get_member(t, "nodrop"))) {
+				id.flag.trade_restriction &= ~ITR_NODROP;
+				if (libconfig->setting_get_bool(tt))
+					id.flag.trade_restriction |= ITR_NODROP;
+			}
+
+			if ((tt = libconfig->setting_get_member(t, "notrade"))) {
+				id.flag.trade_restriction &= ~ITR_NOTRADE;
+				if (libconfig->setting_get_bool(tt))
+					id.flag.trade_restriction |= ITR_NOTRADE;
+			}
+
+			if ((tt = libconfig->setting_get_member(t, "partneroverride"))) {
+				id.flag.trade_restriction &= ~ITR_PARTNEROVERRIDE;
+				if (libconfig->setting_get_bool(tt))
+					id.flag.trade_restriction |= ITR_PARTNEROVERRIDE;
+			}
+
+			if ((tt = libconfig->setting_get_member(t, "noselltonpc"))) {
+				id.flag.trade_restriction &= ~ITR_NOSELLTONPC;
+				if (libconfig->setting_get_bool(tt))
+					id.flag.trade_restriction |= ITR_NOSELLTONPC;
+			}
+
+			if ((tt = libconfig->setting_get_member(t, "nocart"))) {
+				id.flag.trade_restriction &= ~ITR_NOCART;
+				if (libconfig->setting_get_bool(tt))
+					id.flag.trade_restriction |= ITR_NOCART;
+			}
+
+			if ((tt = libconfig->setting_get_member(t, "nostorage"))) {
+				id.flag.trade_restriction &= ~ITR_NOSTORAGE;
+				if (libconfig->setting_get_bool(tt))
+					id.flag.trade_restriction |= ITR_NOSTORAGE;
+			}
+
+			if ((tt = libconfig->setting_get_member(t, "nogstorage"))) {
+				id.flag.trade_restriction &= ~ITR_NOGSTORAGE;
+				if (libconfig->setting_get_bool(tt))
+					id.flag.trade_restriction |= ITR_NOGSTORAGE;
+			}
+
+			if ((tt = libconfig->setting_get_member(t, "nomail"))) {
+				id.flag.trade_restriction &= ~ITR_NOMAIL;
+				if (libconfig->setting_get_bool(tt))
+					id.flag.trade_restriction |= ITR_NOMAIL;
+			}
+
+			if ((tt = libconfig->setting_get_member(t, "noauction"))) {
+				id.flag.trade_restriction &= ~ITR_NOAUCTION;
+				if (libconfig->setting_get_bool(tt))
+					id.flag.trade_restriction |= ITR_NOAUCTION;
+			}
+		} else { // Fallback to int if it's not a group
 			id.flag.trade_restriction = libconfig->setting_get_int(t);
 		}
 	}
