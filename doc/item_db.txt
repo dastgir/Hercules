@@ -36,8 +36,22 @@ item_db: (
 	BindOnEquip: true/false       (boolean, defaults to false)
 	BuyingStore: true/false       (boolean, defaults to false)
 	Delay: Delay to use item      (int, defaults to 0)
-	Trade: [flag, group]          (int, defaults to 0)
-	Nouse: [flag, group]          (int, defaults to 0)
+	Trade: {                      (defaults to no restrictions)
+		override: GroupID             (int, defaults to 100)
+		nodrop: true/false            (boolean, defaults to false)
+		notrade: true/false           (boolean, defaults to false)
+		partneroverride: true/false   (boolean, defaults to false)
+		noselltonpc: true/false       (boolean, defaults to false)
+		nocart: true/false            (boolean, defaults to false)
+		nostorage: true/false         (boolean, defaults to false)
+		nogstorage: true/false        (boolean, defaults to false)
+		nomail: true/false            (boolean, defaults to false)
+		noauction: true/false         (boolean, defaults to false)
+	}
+	Nouse: {                      (defaults to no restrictions)
+		override: GroupID             (int, defaults to 100)
+		sitting: true/false           (boolean, defaults to false)
+	}
 	Stack: [amount, flag]         (int, defaults to 0)
 	Sprite: SpriteID              (int, defaults to 0)
 	Script: <"
@@ -226,35 +240,47 @@ View: For normal items, defines a replacement view-sprite for the item (eg:
 BindOnEquip: Whether the item will automatically bind to the character when it
              is equipped for the first time. An item that has this field set,
              will display a confirmation dialog the first time it is equipped,
-	     and, if accepted, the item will become character-bound.
-		 		 
+             and, if accepted, the item will become character-bound.
+
 BuyingStore: Whether the item can be sold via buyingstore, one must also edit
              data\buyingstoreitemlist.txt for client to accept item.
 
 Delay: Delay for an item to be used again. Value is in milliseconds.
-        There is a max concurrent number of entries modifiable in 
-		src/map/itemdb.h as MAX_ITEMDELAYS.
-		
-Trade: Syntax: [flag, group]
-       group specifies the group level to override the flag setting.
-    Available flags:
-	   1: Item cannot be dropped
-       2: Item cannot be traded (nor vended)
-       4: Wedded partner can override restriction 2.
-       8: Item cannot be sold to NPC's
-       16: Item cannot be placed in the cart
-       32: Item cannot be placed in the storage
-       64: Item cannot be placed in the guild storage
-       128: Item cannot be attached to mail
-       256: Item cannot be auctioned
-	   
-Nouse: Defines if an item cannot be used under certain circumstances
-       Syntax: [flag, group]
-       group specifies the group level to override the flag setting.
-    Available flags:
-	   1: Item cannot be used while sitting
-       X: More to come soon [TODO]
-	   
+       There is a max concurrent number of entries modifiable in
+       src/map/itemdb.h as MAX_ITEMDELAYS.
+
+Trade: Item trade restrictions. If this block is omitted, the item will have no
+       trade restrictions.
+       All the settings in this group are boolean values, unless otherwise
+       specified. Default value is false (restriction not set) for any missing
+       setting.
+
+	Allowed settings in this block are:
+		override: If specified and in the interval [1:100], sets the
+		          minimum GM Group ID that can bypass the defined trade
+		          restrictions. This is an integer value.
+		nodrop: Item can't be dropped.
+		notrade: Item can't be traded (nor vended).
+		partneroverride: Wedded partners can override the notrade setting.
+		noselltonpc: Item can't be sold to NPCs.
+		nocart: Item can't be placed in the cart.
+		nostorage: Item can't be placed in the storage.
+		nogstorage: Item can't be placed in the guild storage.
+		nomail: Item can't be attached to mail messages.
+		noauction: Item can't be auctioned.
+
+Nouse: Defines if an item cannot be used under certain circumstances. If this
+       block is omitted, there will be no usage restrictions.
+       All the settings in this group are boolean values, unless otherwise
+       specified. Default value is false (restriction not set) for any missing
+       setting.
+
+	Allowed settings in this block are:
+		override: If specified and in the interval [1:100], sets the
+		          minimum GM Group ID that can bypass the defined usage
+		          restrictions. This is an integer value.
+		sitting: Item can't be used while sitting.
+
 Stack: Prevents an item to be stacked more than x times in given
        inventory types. Generally used by 3rd class related skill items.
        Syntax: [amount, type]
