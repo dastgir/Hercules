@@ -6115,8 +6115,6 @@ void clif_vendinglist(struct map_session_data* sd, unsigned int id, struct s_ven
 	nullpo_retv(sd);
 	nullpo_retv(vending_items);
 	nullpo_retv(vsd=map->id2sd(id));
-
-	fd = sd->fd;
 	count = vsd->vend_num;
 
 	p.PacketType = vendinglistType;
@@ -6138,7 +6136,7 @@ void clif_vendinglist(struct map_session_data* sd, unsigned int id, struct s_ven
 		vend_item->IsIdentified = vsd->status.cart[index].identify;
 		vend_item->IsDamaged = vsd->status.cart[index].attribute;
 		vend_item->refiningLevel = vsd->status.cart[index].refine;
-		clif->addcards(vend_item->slot.card, &vsd->status.cart[index]);
+		clif->addcards2(vend_item->slot.card, &vsd->status.cart[index]);
 	}
 	clif->send(&p,sizeof(p),&sd->bl,SELF);
 }
@@ -6188,17 +6186,17 @@ void clif_openvending(struct map_session_data* sd, int id, struct s_vending* ven
 	
 	for( i = 0; i < count; i++ ) {
 		int index = vending_items[i].index;
-		struct item_data* data = itemdb->search(vsd->status.cart[index].nameid);
+		struct item_data* data = itemdb->search(sd->status.cart[index].nameid);
 		struct packet_vending_item *vend_item = &p.items[i];
 		vend_item->price = vending_items[i].value;
 		vend_item->index = vending_items[i].index + 2;
 		vend_item->count = vending_items[i].amount;
 		vend_item->type = itemtype(data->type);
-		vend_item->ITID = ( data->view_id > 0 ) ? data->view_id : vsd->status.cart[index].nameid;
-		vend_item->IsIdentified = vsd->status.cart[index].identify;
-		vend_item->IsDamaged = vsd->status.cart[index].attribute;
-		vend_item->refiningLevel = vsd->status.cart[index].refine;
-		clif->addcards(vend_item->slot.card, &vsd->status.cart[index]);
+		vend_item->ITID = ( data->view_id > 0 ) ? data->view_id : sd->status.cart[index].nameid;
+		vend_item->IsIdentified = sd->status.cart[index].identify;
+		vend_item->IsDamaged = sd->status.cart[index].attribute;
+		vend_item->refiningLevel = sd->status.cart[index].refine;
+		clif->addcards2(vend_item->slot.card, &sd->status.cart[index]);
 	}
 	clif->send(&p,sizeof(p),&sd->bl,SELF);
 	
