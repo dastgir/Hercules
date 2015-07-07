@@ -2131,7 +2131,7 @@ void clif_cutin(struct map_session_data* sd, const char* image, int type)
 /*==========================================
  * Fills in card data from the given item and into the buffer. [Skotlex]
  *------------------------------------------*/
-void clif_addcards(unsigned char* buf, struct item* item) {
+void clif_addcards(void* buf, struct item* item) {
 	int i=0,j;
 	if( item == NULL ) { //Blank data
 		WBUFW(buf,0) = 0;
@@ -6120,7 +6120,7 @@ void clif_vendinglist(struct map_session_data* sd, unsigned int id, struct s_ven
 	count = vsd->vend_num;
 
 	p.PacketType = vendinglistType;
-	p.PacketLength = offset+count*p.items[0];
+	p.PacketLength = offset+(count*(sizeof(p.items[0])));
 	p.AID = id;
 #if PACKETVER >= 20100105
 	p.UniqueID = vsd->vender_id;
@@ -6129,7 +6129,7 @@ void clif_vendinglist(struct map_session_data* sd, unsigned int id, struct s_ven
 	for( i = 0; i < count; i++ ) {
 		int index = vending_items[i].index;
 		struct item_data* data = itemdb->search(vsd->status.cart[index].nameid);
-		struct packet_vending_item *vend_item = &p.item[i];
+		struct packet_vending_item *vend_item = &p.items[i];
 		vend_item->price = vending_items[i].value;
 		vend_item->count = vending_items[i].amount;
 		vend_item->index = vending_items[i].index + 2;
@@ -6175,30 +6175,32 @@ void clif_buyvending(struct map_session_data* sd, int index, int amount, int fai
 void clif_openvending(struct map_session_data* sd, int id, struct s_vending* vending_items) {
 	int i,fd;
 	int count;
+	struct packet_openvending p;
 
 	nullpo_retv(sd);
 
 	fd = sd->fd;
 	count = sd->vend_num;
 
-	WFIFOHEAD(fd, 8+count*22);
-	WFIFOW(fd,0) = 0x136;
-	WFIFOW(fd,2) = 8+count*22;
-	WFIFOL(fd,4) = id;
+	p.PacketType = openvendingType;
+	p.PacketLength = 8+count*sizeof(p.items[0]);
+	p.AID = id;
+	
 	for( i = 0; i < count; i++ ) {
 		int index = vending_items[i].index;
-		struct item_data* data = itemdb->search(sd->status.cart[index].nameid);
-		WFIFOL(fd, 8+i*22) = vending_items[i].value;
-		WFIFOW(fd,12+i*22) = vending_items[i].index + 2;
-		WFIFOW(fd,14+i*22) = vending_items[i].amount;
-		WFIFOB(fd,16+i*22) = itemtype(data->type);
-		WFIFOW(fd,17+i*22) = ( data->view_id > 0 ) ? data->view_id : sd->status.cart[index].nameid;
-		WFIFOB(fd,19+i*22) = sd->status.cart[index].identify;
-		WFIFOB(fd,20+i*22) = sd->status.cart[index].attribute;
-		WFIFOB(fd,21+i*22) = sd->status.cart[index].refine;
-		clif->addcards(WFIFOP(fd,22+i*22), &sd->status.cart[index]);
+		struct item_data* data = itemdb->search(vsd->status.cart[index].nameid);
+		struct packet_vending_item *vend_item = &p.items[i];
+		vend_item->price = vending_items[i].value;
+		vend_item->index = vending_items[i].index + 2;
+		vend_item->count = vending_items[i].amount;
+		vend_item->type = itemtype(data->type);
+		vend_item->ITID = ( data->view_id > 0 ) ? data->view_id : vsd->status.cart[index].nameid;
+		vend_item->IsIdentified = vsd->status.cart[index].identify;
+		vend_item->IsDamaged = vsd->status.cart[index].attribute;
+		vend_item->refiningLevel = vsd->status.cart[index].refine;
+		clif->addcards(vend_item->slot, &vsd->status.cart[index]);
 	}
-	WFIFOSET(fd,WFIFOW(fd,2));
+	clif->send(&p,sizeof(p),&sd->bl,SELF);
 	
 #if PACKETVER >= 20141022
 	/** should go elsewhere perhaps? it has to be bundled with this however. **/

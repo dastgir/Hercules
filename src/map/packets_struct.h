@@ -192,6 +192,7 @@ enum packet_headers {
 #else
 	vendinglistType = 0x800,
 #endif
+	openvendingType = 0x136,
 #if PACKETVER >= 20120925
 	equipitemType = 0x998,
 #else
@@ -1084,6 +1085,29 @@ struct packet_vendinglist {
 #if PACKETVER > 20100105
 	unsigned long UniqueID;
 #endif
+	struct packet_vending_item items[MAX_VENDING];
+};
+
+struct packet_openvending_item {
+	int price;
+	short index;
+	short count;
+	unsigned char type;
+	unsigned short ITID;
+	unsigned char IsIdentified;
+	unsigned char IsDamaged;
+	unsigned char refiningLevel;
+	struct EQUIPSLOTINFO slot;
+#if PACKETVER > 20150000
+	unsigned char option_count;
+	struct RndOptions option_data[5];
+#endif
+};
+
+struct packet_openvending {
+	short PacketType;
+	short PacketLength;
+	unsigned long AID;
 	struct packet_vending_item items[MAX_VENDING];
 };
 
