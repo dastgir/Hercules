@@ -6187,7 +6187,7 @@ void clif_openvending(struct map_session_data* sd, int id, struct s_vending* ven
 	for( i = 0; i < count; i++ ) {
 		int index = vending_items[i].index;
 		struct item_data* data = itemdb->search(sd->status.cart[index].nameid);
-		struct packet_vending_item *vend_item = &p.items[i];
+		struct packet_openvending_item *vend_item = &p.items[i];
 		vend_item->price = vending_items[i].value;
 		vend_item->index = vending_items[i].index + 2;
 		vend_item->count = vending_items[i].amount;
