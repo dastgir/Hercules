@@ -1076,7 +1076,7 @@ struct packet_vending_item {
 	unsigned char option_count;
 	struct RndOptions option_data[5];
 #endif
-};
+} __attribute__((packed));
 
 struct packet_vendinglist {
 	short PacketType;
@@ -1086,7 +1086,7 @@ struct packet_vendinglist {
 	unsigned long UniqueID;
 #endif
 	struct packet_vending_item items[MAX_VENDING];
-};
+} __attribute__((packed));
 
 struct packet_openvending_item {
 	int price;
@@ -1102,14 +1102,14 @@ struct packet_openvending_item {
 	unsigned char option_count;
 	struct RndOptions option_data[5];
 #endif
-};
+} __attribute__((packed));
 
 struct packet_openvending {
 	short PacketType;
 	short PacketLength;
 	unsigned long AID;
 	struct packet_vending_item items[MAX_VENDING];
-};
+} __attribute__((packed));
 
 #if !defined(sun) && (!defined(__NETBSD__) || __NetBSD_Version__ >= 600000000) // NetBSD 5 and Solaris don't like pragma pack but accept the packed attribute
 #pragma pack(pop)
