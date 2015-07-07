@@ -6105,11 +6105,10 @@ void clif_vendinglist(struct map_session_data* sd, unsigned int id, struct s_ven
 	int i,fd;
 	int count;
 	struct map_session_data* vsd;
+	struct packet_vendinglist p;
 #if PACKETVER < 20100105
-	const int cmd = 0x133;
 	const int offset = 8;
 #else
-	const int cmd = 0x800;
 	const int offset = 12;
 #endif
 
@@ -6120,28 +6119,28 @@ void clif_vendinglist(struct map_session_data* sd, unsigned int id, struct s_ven
 	fd = sd->fd;
 	count = vsd->vend_num;
 
-	WFIFOHEAD(fd, offset+count*22);
-	WFIFOW(fd,0) = cmd;
-	WFIFOW(fd,2) = offset+count*22;
-	WFIFOL(fd,4) = id;
+	p.PacketType = vendinglistType;
+	p.PacketLength = offset+count*p.items[0];
+	p.AID = id;
 #if PACKETVER >= 20100105
-	WFIFOL(fd,8) = vsd->vender_id;
+	p.UniqueID = vsd->vender_id;
 #endif
 
 	for( i = 0; i < count; i++ ) {
 		int index = vending_items[i].index;
 		struct item_data* data = itemdb->search(vsd->status.cart[index].nameid);
-		WFIFOL(fd,offset+ 0+i*22) = vending_items[i].value;
-		WFIFOW(fd,offset+ 4+i*22) = vending_items[i].amount;
-		WFIFOW(fd,offset+ 6+i*22) = vending_items[i].index + 2;
-		WFIFOB(fd,offset+ 8+i*22) = itemtype(data->type);
-		WFIFOW(fd,offset+ 9+i*22) = ( data->view_id > 0 ) ? data->view_id : vsd->status.cart[index].nameid;
-		WFIFOB(fd,offset+11+i*22) = vsd->status.cart[index].identify;
-		WFIFOB(fd,offset+12+i*22) = vsd->status.cart[index].attribute;
-		WFIFOB(fd,offset+13+i*22) = vsd->status.cart[index].refine;
-		clif->addcards(WFIFOP(fd,offset+14+i*22), &vsd->status.cart[index]);
+		struct packet_vending_item *vend_item = &p.item[i];
+		vend_item->price = vending_items[i].value;
+		vend_item->count = vending_items[i].amount;
+		vend_item->index = vending_items[i].index + 2;
+		vend_item->type = itemtype(data->type);
+		vend_item->ITID = ( data->view_id > 0 ) ? data->view_id : vsd->status.cart[index].nameid;
+		vend_item->IsIdentified = vsd->status.cart[index].identify;
+		vend_item->IsDamaged = vsd->status.cart[index].attribute;
+		vend_item->refiningLevel = vsd->status.cart[index].refine;
+		clif->addcards(vend_item->slot, &vsd->status.cart[index]);
 	}
-	WFIFOSET(fd,WFIFOW(fd,2));
+	clif->send(&p,sizeof(p),&sd->bl,SELF);
 }
 
 

@@ -187,6 +187,11 @@ enum packet_headers {
 #else
 	cartlistequipType = 0x122,
 #endif
+#if PACKETVER < 20100105
+	vendinglistType = 0x133,
+#else
+	vendinglistType = 0x800,
+#endif
 #if PACKETVER >= 20120925
 	equipitemType = 0x998,
 #else
@@ -1056,6 +1061,31 @@ struct packet_party_leader_changed {
 	unsigned int new_leader_aid;
 } __attribute__((packed));
 
+struct packet_vending_item {
+	int price;
+	short count;
+	short index;
+	unsigned char type;
+	unsigned short ITID;
+	unsigned char IsIdentified;
+	unsigned char IsDamaged;
+	unsigned char refiningLevel;
+	struct EQUIPSLOTINFO slot;
+#if PACKETVER > 20150000
+	unsigned char option_count;
+	struct RndOptions option_data[5];
+#endif
+};
+
+struct packet_vendinglist {
+	short PacketType;
+	short PacketLength;
+	unsigned long AID;
+#if PACKETVER > 20100105
+	unsigned long UniqueID;
+#endif
+	struct packet_vending_item items[MAX_VENDING];
+};
 
 #if !defined(sun) && (!defined(__NETBSD__) || __NetBSD_Version__ >= 600000000) // NetBSD 5 and Solaris don't like pragma pack but accept the packed attribute
 #pragma pack(pop)
