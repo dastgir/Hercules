@@ -6,19 +6,18 @@
 
 #include "grfio.h"
 
+#include "common/cbasetypes.h"
+#include "common/des.h"
+#include "common/malloc.h"
+#include "common/nullpo.h"
+#include "common/showmsg.h"
+#include "common/strlib.h"
+#include "common/utils.h"
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sys/stat.h>
 #include <zlib.h>
-
-#include "../common/cbasetypes.h"
-#include "../common/des.h"
-#include "../common/malloc.h"
-#include "../common/nullpo.h"
-#include "../common/showmsg.h"
-#include "../common/strlib.h"
-#include "../common/utils.h"
 
 //----------------------------
 // file entry table struct
@@ -36,8 +35,8 @@ typedef struct FILELIST {
 } FILELIST;
 
 #define FILELIST_TYPE_FILE           0x01 // entry is a file
-#define FILELIST_TYPE_ENCRYPT_HEADER 0x04 // encryption mode 1 (header DES only)
 #define FILELIST_TYPE_ENCRYPT_MIXED  0x02 // encryption mode 0 (header DES + periodic DES/shuffle)
+#define FILELIST_TYPE_ENCRYPT_HEADER 0x04 // encryption mode 1 (header DES only)
 
 //gentry ... > 0  : data read from a grf file (gentry_table[gentry-1])
 //gentry ... 0    : data read from a local file (data directory)

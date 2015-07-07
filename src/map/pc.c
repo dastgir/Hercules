@@ -4,57 +4,57 @@
 
 #define HERCULES_CORE
 
-#include "../config/core.h" // DBPATH, GP_BOUND_ITEMS, MAX_SPIRITBALL, RENEWAL, RENEWAL_ASPD, RENEWAL_CAST, RENEWAL_DROP, RENEWAL_EXP, SECURE_NPCTIMEOUT
+#include "config/core.h" // DBPATH, GP_BOUND_ITEMS, MAX_SPIRITBALL, RENEWAL, RENEWAL_ASPD, RENEWAL_CAST, RENEWAL_DROP, RENEWAL_EXP, SECURE_NPCTIMEOUT
 #include "pc.h"
+
+#include "map/atcommand.h" // get_atcommand_level()
+#include "map/battle.h" // battle_config
+#include "map/battleground.h"
+#include "map/channel.h"
+#include "map/chat.h"
+#include "map/chrif.h"
+#include "map/clif.h"
+#include "map/date.h" // is_day_of_*()
+#include "map/duel.h"
+#include "map/elemental.h"
+#include "map/guild.h" // guild-"search(), guild_request_info()
+#include "map/homunculus.h"
+#include "map/instance.h"
+#include "map/intif.h"
+#include "map/itemdb.h"
+#include "map/log.h"
+#include "map/mail.h"
+#include "map/map.h"
+#include "map/mercenary.h"
+#include "map/mob.h" // struct mob_data
+#include "map/npc.h" // fake_nd
+#include "map/party.h" // party-"search()
+#include "map/path.h"
+#include "map/pc_groups.h"
+#include "map/pet.h" // pet_unlocktarget()
+#include "map/quest.h"
+#include "map/script.h" // script_config
+#include "map/skill.h"
+#include "map/status.h" // struct status_data
+#include "map/storage.h"
+#include "common/cbasetypes.h"
+#include "common/conf.h"
+#include "common/core.h" // get_svn_revision()
+#include "common/malloc.h"
+#include "common/mmo.h" // NAME_LENGTH, MAX_CARTS, NEW_CARTS
+#include "common/nullpo.h"
+#include "common/random.h"
+#include "common/showmsg.h"
+#include "common/socket.h" // session[]
+#include "common/strlib.h" // safestrncpy()
+#include "common/sysinfo.h"
+#include "common/timer.h"
+#include "common/utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
-#include "atcommand.h" // get_atcommand_level()
-#include "battle.h" // battle_config
-#include "battleground.h"
-#include "channel.h"
-#include "chat.h"
-#include "chrif.h"
-#include "clif.h"
-#include "date.h" // is_day_of_*()
-#include "duel.h"
-#include "elemental.h"
-#include "guild.h" // guild->search(), guild_request_info()
-#include "homunculus.h"
-#include "instance.h"
-#include "intif.h"
-#include "itemdb.h"
-#include "log.h"
-#include "mail.h"
-#include "map.h"
-#include "mercenary.h"
-#include "mob.h" // struct mob_data
-#include "npc.h" // fake_nd
-#include "party.h" // party->search()
-#include "path.h"
-#include "pc_groups.h"
-#include "pet.h" // pet_unlocktarget()
-#include "quest.h"
-#include "script.h" // script_config
-#include "skill.h"
-#include "status.h" // struct status_data
-#include "storage.h"
-#include "../common/cbasetypes.h"
-#include "../common/conf.h"
-#include "../common/core.h" // get_svn_revision()
-#include "../common/malloc.h"
-#include "../common/mmo.h" // NAME_LENGTH, MAX_CARTS, NEW_CARTS
-#include "../common/nullpo.h"
-#include "../common/random.h"
-#include "../common/showmsg.h"
-#include "../common/socket.h" // session[]
-#include "../common/strlib.h" // safestrncpy()
-#include "../common/sysinfo.h"
-#include "../common/timer.h"
-#include "../common/utils.h"
 
 struct pc_interface pc_s;
 
@@ -172,6 +172,28 @@ int pc_spiritball_timer(int tid, int64 tick, int id, intptr_t data) {
 	clif->spiritball(&sd->bl);
 
 	return 0;
+}
+
+/**
+* Get the possible number of spiritball that a player can call.
+* @param sd the affected player structure
+* @param min the minimum number of spiritball regardless the level of MO_CALLSPIRITS
+* @retval total number of spiritball
+**/
+int pc_getmaxspiritball(struct map_session_data *sd, int min) {
+	int result;
+
+	nullpo_ret(sd);
+
+	result = pc->checkskill(sd, MO_CALLSPIRITS);
+	
+	if ( min && result < min )
+		result = min;
+	else if ( sd->sc.data[SC_RAISINGDRAGON] )
+		result += sd->sc.data[SC_RAISINGDRAGON]->val1;
+	if ( result > MAX_SPIRITBALL )
+		result = MAX_SPIRITBALL;
+	return result;
 }
 
 int pc_addspiritball(struct map_session_data *sd,int interval,int max)
@@ -495,7 +517,7 @@ void pc_rental_expire(struct map_session_data *sd, int i) {
 	}
 	
 	clif->rental_expired(sd->fd, i, sd->status.inventory[i].nameid);
-	pc->delitem(sd, i, sd->status.inventory[i].amount, 0, 0, LOG_TYPE_OTHER);
+	pc->delitem(sd, i, sd->status.inventory[i].amount, 0, DELITEM_NORMAL, LOG_TYPE_OTHER);
 }
 void pc_inventory_rentals(struct map_session_data *sd)
 {
@@ -861,12 +883,12 @@ bool pc_adoption(struct map_session_data *p1_sd, struct map_session_data *p2_sd,
 		clif->updatestatus(b_sd, SP_JOBEXP);
 
 		// Baby Skills
-		pc->skill(b_sd, WE_BABY, 1, 0);
-		pc->skill(b_sd, WE_CALLPARENT, 1, 0);
+		pc->skill(b_sd, WE_BABY, 1, SKILL_GRANT_PERMANENT);
+		pc->skill(b_sd, WE_CALLPARENT, 1, SKILL_GRANT_PERMANENT);
 
 		// Parents Skills
-		pc->skill(p1_sd, WE_CALLBABY, 1, 0);
-		pc->skill(p2_sd, WE_CALLBABY, 1, 0);
+		pc->skill(p1_sd, WE_CALLBABY, 1, SKILL_GRANT_PERMANENT);
+		pc->skill(p2_sd, WE_CALLBABY, 1, SKILL_GRANT_PERMANENT);
 
 		return true;
 	}
@@ -1119,7 +1141,7 @@ bool pc_authok(struct map_session_data *sd, int login_id2, time_t expiration_tim
 	// Rental Timer
 	sd->rental_timer = INVALID_TIMER;
 
-	for( i = 0; i < 3; i++ )
+	for( i = 0; i < MAX_PC_FEELHATE; i++ )
 		sd->hate_mob[i] = -1;
 
 	sd->quest_log = NULL;
@@ -1217,7 +1239,7 @@ void pc_authfail(struct map_session_data *sd)
 int pc_set_hate_mob(struct map_session_data *sd, int pos, struct block_list *bl)
 {
 	int class_;
-	if (!sd || !bl || pos < 0 || pos > 2)
+	if (!sd || !bl || pos < 0 || pos >= MAX_PC_FEELHATE)
 		return 0;
 	if (sd->hate_mob[pos] != -1) {
 		//Can't change hate targets.
@@ -1777,7 +1799,7 @@ int pc_disguise(struct map_session_data *sd, int class_) {
 		if( class_ == -1 && sd->disguise == sd->status.class_ ) {
 			clif->clearunit_single(-sd->bl.id,CLR_OUTSIGHT,sd->fd);
 		} else if ( class_ != sd->status.class_ ) {
-			pc_stop_walking(sd, 0);
+			pc_stop_walking(sd, STOPWALKING_FLAG_NONE);
 			clif->clearunit_area(&sd->bl, CLR_OUTSIGHT);
 		}
 	}
@@ -2783,24 +2805,56 @@ int pc_bonus2(struct map_session_data *sd,int type,int type2,int val)
 
 	switch(type){
 		case SP_ADDELE:
-			if(type2 >= ELE_MAX) {
+			if( (type2 >= ELE_MAX && type2 != ELE_ALL) || (type2 < ELE_NEUTRAL) ) {
 				ShowError("pc_bonus2: SP_ADDELE: Invalid element %d\n", type2);
 				break;
 			}
-			if(!sd->state.lr_flag)
-				sd->right_weapon.addele[type2]+=val;
-			else if(sd->state.lr_flag == 1)
-				sd->left_weapon.addele[type2]+=val;
-			else if(sd->state.lr_flag == 2)
-				sd->arrow_addele[type2]+=val;
+			if ( type2 == ELE_ALL ) {
+				for ( i = ELE_NEUTRAL; i < ELE_MAX; i++ ) {
+					if ( !sd->state.lr_flag )
+						sd->right_weapon.addele[i] += val;
+					else if ( sd->state.lr_flag == 1 )
+						sd->left_weapon.addele[i] += val;
+					else if ( sd->state.lr_flag == 2 )
+						sd->arrow_addele[i] += val;
+				}
+			} else {
+				if(!sd->state.lr_flag)
+					sd->right_weapon.addele[type2] += val;
+				else if(sd->state.lr_flag == 1)
+					sd->left_weapon.addele[type2] += val;
+				else if(sd->state.lr_flag == 2)
+					sd->arrow_addele[type2] += val;
+			}
 			break;
 		case SP_ADDRACE:
-			if(!sd->state.lr_flag)
-				sd->right_weapon.addrace[type2]+=val;
-			else if(sd->state.lr_flag == 1)
-				sd->left_weapon.addrace[type2]+=val;
-			else if(sd->state.lr_flag == 2)
-				sd->arrow_addrace[type2]+=val;
+			if (type2 == RC_MAX || (type2 > RC_NONDEMIPLAYER && type2 != RC_ALL) || type2 < RC_FORMLESS ){
+				ShowWarning("pc_bonus2: SP_ADDRACE: Invalid Race(%d)\n",type2);
+				break;
+			}
+			if ( type2 >= RC_MAX ) {
+				for ( i = RC_FORMLESS; i < RC_MAX; i++ ) {
+					if ( (type2 == RC_NONPLAYER && i == RC_PLAYER) ||
+						 (type2 == RC_NONDEMIHUMAN && i == RC_DEMIHUMAN) ||
+						 (type2 == RC_DEMIPLAYER && (i != RC_PLAYER && i != RC_DEMIHUMAN)) ||
+						 (type2 == RC_NONDEMIPLAYER && (i == RC_PLAYER || i == RC_DEMIHUMAN))
+						)
+						continue;
+					if ( !sd->state.lr_flag )
+						sd->right_weapon.addrace[i] += val;
+					else if ( sd->state.lr_flag == 1 )
+						sd->left_weapon.addrace[i] += val;
+					else if ( sd->state.lr_flag == 2 )
+						sd->arrow_addrace[i] += val;
+				}
+			} else {
+				if(!sd->state.lr_flag)
+					sd->right_weapon.addrace[type2] += val;
+				else if(sd->state.lr_flag == 1)
+					sd->left_weapon.addrace[type2] += val;
+				else if(sd->state.lr_flag == 2)
+					sd->arrow_addrace[type2] += val;
+			}
 			break;
 		case SP_ADDSIZE:
 			if(!sd->state.lr_flag)
@@ -2811,16 +2865,40 @@ int pc_bonus2(struct map_session_data *sd,int type,int type2,int val)
 				sd->arrow_addsize[type2]+=val;
 			break;
 		case SP_SUBELE:
-			if(type2 >= ELE_MAX) {
+			if( (type2 >= ELE_MAX && type2 != ELE_ALL) || (type2 < ELE_NEUTRAL) ) {
 				ShowError("pc_bonus2: SP_SUBELE: Invalid element %d\n", type2);
 				break;
 			}
-			if(sd->state.lr_flag != 2)
-				sd->subele[type2]+=val;
+			if(sd->state.lr_flag != 2) {
+				if ( type2 == ELE_ALL ) {
+					for ( i = ELE_NEUTRAL; i < ELE_MAX; i++ ){
+						sd->subele[i] += val;
+					}
+				} else {
+					sd->subele[type2] += val;
+				}
+			}
 			break;
 		case SP_SUBRACE:
-			if(sd->state.lr_flag != 2)
-				sd->subrace[type2]+=val;
+			if (type2 == RC_MAX || (type2 > RC_NONDEMIPLAYER && type2 != RC_ALL) || type2 < RC_FORMLESS ){
+				ShowWarning("pc_bonus2: SP_SUBRACE: Invalid Race(%d)\n",type2);
+				break;
+			}
+			if(sd->state.lr_flag != 2) {
+				if (type2 >= RC_MAX ) {
+					for ( i = RC_FORMLESS; i < RC_MAX; i++ ){
+						if ( (type2 == RC_NONPLAYER && i == RC_PLAYER) ||
+							 (type2 == RC_NONDEMIHUMAN && i == RC_DEMIHUMAN) ||
+							 (type2 == RC_DEMIPLAYER && (i != RC_PLAYER && i != RC_DEMIHUMAN)) ||
+							 (type2 == RC_NONDEMIPLAYER && (i == RC_PLAYER || i == RC_DEMIHUMAN))
+							)
+							continue;
+						sd->subrace[i] += val;
+					}
+				} else {
+					sd->subrace[type2]+=val;
+				}
+			}
 			break;
 		case SP_ADDEFF:
 			if (type2 > SC_MAX) {
@@ -2849,24 +2927,57 @@ int pc_bonus2(struct map_session_data *sd,int type,int type2,int val)
 			sd->reseff[type2-SC_COMMON_MIN]= cap_value(i, 0, 10000);
 			break;
 		case SP_MAGIC_ADDELE:
-			if(type2 >= ELE_MAX) {
+			if( (type2 >= ELE_MAX && type2 != ELE_ALL) || (type2 < ELE_NEUTRAL) ) {
 				ShowError("pc_bonus2: SP_MAGIC_ADDELE: Invalid element %d\n", type2);
 				break;
 			}
-			if(sd->state.lr_flag != 2)
-				sd->magic_addele[type2]+=val;
+			if ( sd->state.lr_flag != 2 ) {
+				if ( type2 == ELE_ALL ) {
+					for ( i = ELE_NEUTRAL; i < ELE_MAX; i++ )
+						sd->magic_addele[i] += val;
+				} else {
+					sd->magic_addele[type2] += val;
+				}
+			}
 			break;
 		case SP_MAGIC_ADDRACE:
-			if(sd->state.lr_flag != 2)
-				sd->magic_addrace[type2]+=val;
+			if (type2 == RC_MAX || (type2 > RC_NONDEMIPLAYER && type2 != RC_ALL) || type2 < RC_FORMLESS ){
+				ShowWarning("pc_bonus2: SP_MAGIC_ADDRACE: Invalid Race(%d)\n",type2);
+				break;
+			}
+			if(sd->state.lr_flag != 2){
+				if ( type2 >= RC_MAX ){
+					for ( i = RC_FORMLESS; i < RC_MAX; i++ ){
+						if ( (type2 == RC_NONPLAYER && i == RC_PLAYER) ||
+							 (type2 == RC_NONDEMIHUMAN && i == RC_DEMIHUMAN) ||
+							 (type2 == RC_DEMIPLAYER && (i != RC_PLAYER && i != RC_DEMIHUMAN)) ||
+							 (type2 == RC_NONDEMIPLAYER && (i == RC_PLAYER || i == RC_DEMIHUMAN))
+							)
+							continue;
+						sd->magic_addrace[i] += val;
+					}
+				} else {
+					sd->magic_addrace[type2]+=val;
+				}
+			}
 			break;
 		case SP_MAGIC_ADDSIZE:
 			if(sd->state.lr_flag != 2)
 				sd->magic_addsize[type2]+=val;
 			break;
 		case SP_MAGIC_ATK_ELE:
-			if(sd->state.lr_flag != 2)
-				sd->magic_atk_ele[type2]+=val;
+			if( (type2 >= ELE_MAX && type2 != ELE_ALL) || (type2 < ELE_NEUTRAL) ) {
+				ShowError("pc_bonus2: SP_MAGIC_ATK_ELE: Invalid element %d\n", type2);
+				break;
+			}
+			if ( sd->state.lr_flag != 2 ) {
+				if ( type2 == ELE_ALL ) {
+					for ( i = ELE_NEUTRAL; i < ELE_MAX; i++ )
+						sd->magic_atk_ele[i] += val;
+				} else {
+					sd->magic_atk_ele[type2] += val;
+				}
+			}
 			break;
 		case SP_ADD_DAMAGE_CLASS:
 			switch (sd->state.lr_flag) {
@@ -3015,19 +3126,40 @@ int pc_bonus2(struct map_session_data *sd,int type,int type2,int val)
 			}
 			break;
 		case SP_WEAPON_COMA_ELE:
-			if(type2 >= ELE_MAX) {
+			if( (type2 >= ELE_MAX && type2 != ELE_ALL) || (type2 < ELE_NEUTRAL) ) {
 				ShowError("pc_bonus2: SP_WEAPON_COMA_ELE: Invalid element %d\n", type2);
 				break;
 			}
 			if(sd->state.lr_flag == 2)
 				break;
-			sd->weapon_coma_ele[type2] += val;
+			if ( type2 == ELE_ALL ) {
+				for ( i = ELE_NEUTRAL; i < ELE_MAX; i++ )
+					sd->weapon_coma_ele[i] += val;
+			} else {
+				sd->weapon_coma_ele[type2] += val;
+			}
 			sd->special_state.bonus_coma = 1;
 			break;
 		case SP_WEAPON_COMA_RACE:
+			if (type2 == RC_MAX || (type2 > RC_NONDEMIPLAYER && type2 != RC_ALL) || type2 < RC_FORMLESS ){
+				ShowWarning("pc_bonus2: SP_WEAPON_COMA_RACE: Invalid Race(%d)\n",type2);
+				break;
+			}
 			if(sd->state.lr_flag == 2)
 				break;
-			sd->weapon_coma_race[type2] += val;
+			if ( type2 >= RC_MAX ) {
+				for ( i = RC_FORMLESS; i < RC_MAX; i++ ){
+					if ( (type2 == RC_NONPLAYER && i == RC_PLAYER) ||
+						 (type2 == RC_NONDEMIHUMAN && i == RC_DEMIHUMAN) ||
+						 (type2 == RC_DEMIPLAYER && (i != RC_PLAYER && i != RC_DEMIHUMAN)) ||
+						 (type2 == RC_NONDEMIPLAYER && (i == RC_PLAYER || i == RC_DEMIHUMAN))
+						)
+							continue;
+					sd->weapon_coma_race[i] += val;
+				}
+			} else {
+				sd->weapon_coma_race[type2] += val;
+			}
 			sd->special_state.bonus_coma = 1;
 			break;
 		case SP_WEAPON_ATK:
@@ -3039,8 +3171,25 @@ int pc_bonus2(struct map_session_data *sd,int type,int type2,int val)
 				sd->weapon_atk_rate[type2]+=val;
 			break;
 		case SP_CRITICAL_ADDRACE:
-			if(sd->state.lr_flag != 2)
-				sd->critaddrace[type2] += val*10;
+			if (type2 == RC_MAX || (type2 > RC_NONDEMIPLAYER && type2 != RC_ALL) || type2 < RC_FORMLESS ){
+				ShowWarning("pc_bonus2: SP_CRITICAL_ADDRACE: Invalid Race(%d)\n",type2);
+				break;
+			}
+			if(sd->state.lr_flag != 2){
+				if ( type2 >= RC_MAX ){
+					for ( i = RC_FORMLESS; i < RC_MAX; i++ ){
+						if ( (type2 == RC_NONPLAYER && i == RC_PLAYER) ||
+							 (type2 == RC_NONDEMIHUMAN && i == RC_DEMIHUMAN) ||
+							 (type2 == RC_DEMIPLAYER && (i != RC_PLAYER && i != RC_DEMIHUMAN)) ||
+							 (type2 == RC_NONDEMIPLAYER && (i == RC_PLAYER || i == RC_DEMIHUMAN))
+							)
+							continue;
+						sd->critaddrace[i] += val*10;
+					}
+				} else {
+					sd->critaddrace[type2] += val*10;
+				}
+			}
 			break;
 		case SP_ADDEFF_WHENHIT:
 			if (type2 > SC_MAX) {
@@ -3211,12 +3360,46 @@ int pc_bonus2(struct map_session_data *sd,int type,int type2,int val)
 			sd->itemhealrate[i].rate += val;
 			break;
 		case SP_EXP_ADDRACE:
-			if(sd->state.lr_flag != 2)
-				sd->expaddrace[type2]+=val;
+			if (type2 == RC_MAX || (type2 > RC_NONDEMIPLAYER && type2 != RC_ALL) || type2 < RC_FORMLESS ){
+				ShowWarning("pc_bonus2: SP_EXP_ADDRACE: Invalid Race(%d)\n",type2);
+				break;
+			}
+			if(sd->state.lr_flag != 2) {
+				if ( type2 >= RC_MAX ){
+					for ( i = RC_FORMLESS; i < RC_MAX; i++ ){
+						if ( (type2 == RC_NONPLAYER && i == RC_PLAYER) ||
+							 (type2 == RC_NONDEMIHUMAN && i == RC_DEMIHUMAN) ||
+							 (type2 == RC_DEMIPLAYER && (i != RC_PLAYER && i != RC_DEMIHUMAN)) ||
+							 (type2 == RC_NONDEMIPLAYER && (i == RC_PLAYER || i == RC_DEMIHUMAN))
+							)
+							continue;
+						sd->expaddrace[i] += val;
+					}
+				} else {
+					sd->expaddrace[type2] += val;
+				}
+			}
 			break;
 		case SP_SP_GAIN_RACE:
-			if(sd->state.lr_flag != 2)
-				sd->sp_gain_race[type2]+=val;
+			if (type2 == RC_MAX || (type2 > RC_NONDEMIPLAYER && type2 != RC_ALL) || type2 < RC_FORMLESS ){
+				ShowWarning("pc_bonus2: SP_SP_GAIN_RACE: Invalid Race(%d)\n",type2);
+				break;
+			}
+			if(sd->state.lr_flag != 2) {
+				if ( type2 >= RC_MAX ){
+					for ( i = RC_FORMLESS; i < RC_MAX; i++ ){
+						if ( (type2 == RC_NONPLAYER && i == RC_PLAYER) ||
+							 (type2 == RC_NONDEMIHUMAN && i == RC_DEMIHUMAN) ||
+							 (type2 == RC_DEMIPLAYER && (i != RC_PLAYER && i != RC_DEMIHUMAN)) ||
+							 (type2 == RC_NONDEMIPLAYER && (i == RC_PLAYER || i == RC_DEMIHUMAN))
+							)
+							continue;
+						sd->sp_gain_race[i] += val;
+					}
+				} else {
+					sd->sp_gain_race[type2] += val;
+				}
+			}
 			break;
 		case SP_ADD_MONSTER_DROP_ITEM:
 			if (sd->state.lr_flag != 2)
@@ -3235,19 +3418,61 @@ int pc_bonus2(struct map_session_data *sd,int type,int type2,int val)
 			}
 			break;
 		case SP_HP_DRAIN_VALUE_RACE:
-			if(!sd->state.lr_flag) {
-				sd->right_weapon.hp_drain[type2].value += val;
+			if (type2 == RC_MAX || (type2 > RC_NONDEMIPLAYER && type2 != RC_ALL) || type2 < RC_FORMLESS ){
+				ShowWarning("pc_bonus2: SP_HP_DRAIN_VALUE_RACE: Invalid Race(%d)\n",type2);
+				break;
 			}
-			else if(sd->state.lr_flag == 1) {
-				sd->left_weapon.hp_drain[type2].value += val;
+			if ( type2 >= RC_MAX ){
+				for ( i = RC_FORMLESS; i < RC_MAX; i++ ){
+					if ( (type2 == RC_NONPLAYER && i == RC_PLAYER) ||
+						 (type2 == RC_NONDEMIHUMAN && i == RC_DEMIHUMAN) ||
+						 (type2 == RC_DEMIPLAYER && (i != RC_PLAYER && i != RC_DEMIHUMAN)) ||
+						 (type2 == RC_NONDEMIPLAYER && (i == RC_PLAYER || i == RC_DEMIHUMAN))
+						)
+						continue;
+					if(!sd->state.lr_flag) {
+						sd->right_weapon.hp_drain[i].value += val;
+					}
+					else if(sd->state.lr_flag == 1) {
+						sd->left_weapon.hp_drain[i].value += val;
+					}
+				}
+			} else {
+				if(!sd->state.lr_flag) {
+					sd->right_weapon.hp_drain[type2].value += val;
+				}
+				else if(sd->state.lr_flag == 1) {
+					sd->left_weapon.hp_drain[type2].value += val;
+				}
 			}
 			break;
 		case SP_SP_DRAIN_VALUE_RACE:
-			if(!sd->state.lr_flag) {
-				sd->right_weapon.sp_drain[type2].value += val;
+			if (type2 == RC_MAX || (type2 > RC_NONDEMIPLAYER && type2 != RC_ALL) || type2 < RC_FORMLESS ){
+				ShowWarning("pc_bonus2: SP_SP_DRAIN_VALUE_RACE: Invalid Race(%d)\n",type2);
+				break;
 			}
-			else if(sd->state.lr_flag == 1) {
-				sd->left_weapon.sp_drain[type2].value += val;
+			if ( type2 >= RC_MAX ){
+				for ( i = RC_FORMLESS; i < RC_MAX; i++ ){
+					if ( (type2 == RC_NONPLAYER && i == RC_PLAYER) ||
+						 (type2 == RC_NONDEMIHUMAN && i == RC_DEMIHUMAN) ||
+						 (type2 == RC_DEMIPLAYER && (i != RC_PLAYER && i != RC_DEMIHUMAN)) ||
+						 (type2 == RC_NONDEMIPLAYER && (i == RC_PLAYER || i == RC_DEMIHUMAN))
+						)
+						continue;
+					if(!sd->state.lr_flag) {
+						sd->right_weapon.sp_drain[i].value += val;
+					}
+					else if(sd->state.lr_flag == 1) {
+						sd->left_weapon.sp_drain[i].value += val;
+					}
+				}
+			} else {
+				if(!sd->state.lr_flag) {
+					sd->right_weapon.sp_drain[type2].value += val;
+				}
+				else if(sd->state.lr_flag == 1) {
+					sd->left_weapon.sp_drain[type2].value += val;
+				}
 			}
 			break;
 		case SP_IGNORE_MDEF_RATE:
@@ -3259,12 +3484,46 @@ int pc_bonus2(struct map_session_data *sd,int type,int type2,int val)
 				sd->ignore_def[type2] += val;
 			break;
 		case SP_SP_GAIN_RACE_ATTACK:
-			if(sd->state.lr_flag != 2)
-				sd->sp_gain_race_attack[type2] = cap_value(sd->sp_gain_race_attack[type2] + val, 0, INT16_MAX);
+			if (type2 == RC_MAX || (type2 > RC_NONDEMIPLAYER && type2 != RC_ALL) || type2 < RC_FORMLESS ){
+				ShowWarning("pc_bonus2: SP_SP_GAIN_RACE_ATTACK: Invalid Race(%d)\n",type2);
+				break;
+			}
+			if(sd->state.lr_flag != 2) {
+				if ( type2 >= RC_MAX ) {
+					for ( i = RC_FORMLESS; i < RC_MAX; i++ ){
+						if ( (type2 == RC_NONPLAYER && i == RC_PLAYER) ||
+							 (type2 == RC_NONDEMIHUMAN && i == RC_DEMIHUMAN) ||
+							 (type2 == RC_DEMIPLAYER && (i != RC_PLAYER && i != RC_DEMIHUMAN)) ||
+							 (type2 == RC_NONDEMIPLAYER && (i == RC_PLAYER || i == RC_DEMIHUMAN))
+							)
+							continue;
+						sd->sp_gain_race_attack[i] = cap_value(sd->sp_gain_race_attack[i] + val, 0, INT16_MAX);
+					}
+				} else {
+						sd->sp_gain_race_attack[type2] = cap_value(sd->sp_gain_race_attack[type2] + val, 0, INT16_MAX);
+				}
+			}
 			break;
 		case SP_HP_GAIN_RACE_ATTACK:
-			if(sd->state.lr_flag != 2)
-				sd->hp_gain_race_attack[type2] = cap_value(sd->hp_gain_race_attack[type2] + val, 0, INT16_MAX);
+			if (type2 == RC_MAX || (type2 > RC_NONDEMIPLAYER && type2 != RC_ALL) || type2 < RC_FORMLESS ){
+				ShowWarning("pc_bonus2: SP_HP_GAIN_RACE_ATTACK: Invalid Race(%d)\n",type2);
+				break;
+			}
+			if(sd->state.lr_flag != 2) {
+				if ( type2 >= RC_MAX ) {
+					for ( i = RC_FORMLESS; i < RC_MAX; i++ ){
+						if ( (type2 == RC_NONPLAYER && i == RC_PLAYER) ||
+							 (type2 == RC_NONDEMIHUMAN && i == RC_DEMIHUMAN) ||
+							 (type2 == RC_DEMIPLAYER && (i != RC_PLAYER && i != RC_DEMIHUMAN)) ||
+							 (type2 == RC_NONDEMIPLAYER && (i == RC_PLAYER || i == RC_DEMIHUMAN))
+							)
+							continue;
+						sd->hp_gain_race_attack[i] = cap_value(sd->hp_gain_race_attack[i] + val, 0, INT16_MAX);
+					}
+				} else {
+						sd->hp_gain_race_attack[type2] = cap_value(sd->hp_gain_race_attack[type2] + val, 0, INT16_MAX);
+				}
+			}
 			break;
 		case SP_SKILL_USE_SP_RATE: //bonus2 bSkillUseSPrate,n,x;
 			if(sd->state.lr_flag == 2)
@@ -3370,8 +3629,25 @@ int pc_bonus2(struct map_session_data *sd,int type,int type2,int val)
 			break;
 #ifdef RENEWAL
 		case SP_RACE_TOLERANCE:
-			if ( sd->state.lr_flag != 2 )
-				sd->race_tolerance[type2] += val;
+			if (type2 == RC_MAX || (type2 > RC_NONDEMIPLAYER && type2 != RC_ALL) || type2 < RC_FORMLESS ){
+				ShowWarning("pc_bonus2: SP_RACE_TOLERANCE: Invalid Race(%d)\n",type2);
+				break;
+			}
+			if(sd->state.lr_flag != 2) {
+				if ( type2 >= RC_MAX ) {
+					for ( i = RC_FORMLESS; i < RC_MAX; i++ ){
+						if ( (type2 == RC_NONPLAYER && i == RC_PLAYER) ||
+							 (type2 == RC_NONDEMIHUMAN && i == RC_DEMIHUMAN) ||
+							 (type2 == RC_DEMIPLAYER && (i != RC_PLAYER && i != RC_DEMIHUMAN)) ||
+							 (type2 == RC_NONDEMIPLAYER && (i == RC_PLAYER || i == RC_DEMIHUMAN))
+							)
+							continue;
+						sd->race_tolerance[i] += val;
+					}
+				} else {
+						sd->race_tolerance[type2] += val;
+				}
+			}
 			break;
 #endif
 		default:
@@ -3383,6 +3659,7 @@ int pc_bonus2(struct map_session_data *sd,int type,int type2,int val)
 
 int pc_bonus3(struct map_session_data *sd,int type,int type2,int type3,int val)
 {
+	int i;
 	nullpo_ret(sd);
 
 	switch(type){
@@ -3432,23 +3709,69 @@ int pc_bonus3(struct map_session_data *sd,int type,int type2,int type3,int val)
 			}
 			break;
 		case SP_HP_DRAIN_RATE_RACE:
-			if(!sd->state.lr_flag) {
-				sd->right_weapon.hp_drain[type2].rate += type3;
-				sd->right_weapon.hp_drain[type2].per += val;
+			if (type2 == RC_MAX || (type2 > RC_NONDEMIPLAYER && type2 != RC_ALL) || type2 < RC_FORMLESS ){
+				ShowWarning("pc_bonus3: SP_HP_DRAIN_RATE_RACE: Invalid Race(%d)\n",type2);
+				break;
 			}
-			else if(sd->state.lr_flag == 1) {
-				sd->left_weapon.hp_drain[type2].rate += type3;
-				sd->left_weapon.hp_drain[type2].per += val;
+			if ( type2 >= RC_MAX ) {
+				for ( i = RC_FORMLESS; i < RC_MAX; i++ ){
+					if ( (type2 == RC_NONPLAYER && i == RC_PLAYER) ||
+						 (type2 == RC_NONDEMIHUMAN && i == RC_DEMIHUMAN) ||
+						 (type2 == RC_DEMIPLAYER && (i != RC_PLAYER && i != RC_DEMIHUMAN)) ||
+						 (type2 == RC_NONDEMIPLAYER && (i == RC_PLAYER || i == RC_DEMIHUMAN))
+						)
+						continue;
+					if(!sd->state.lr_flag) {
+						sd->right_weapon.hp_drain[i].rate += type3;
+						sd->right_weapon.hp_drain[i].per += val;
+					}
+					else if(sd->state.lr_flag == 1) {
+						sd->left_weapon.hp_drain[i].rate += type3;
+						sd->left_weapon.hp_drain[i].per += val;
+					}
+				}
+			} else {
+				if(!sd->state.lr_flag) {
+					sd->right_weapon.hp_drain[type2].rate += type3;
+					sd->right_weapon.hp_drain[type2].per += val;
+				}
+				else if(sd->state.lr_flag == 1) {
+					sd->left_weapon.hp_drain[type2].rate += type3;
+					sd->left_weapon.hp_drain[type2].per += val;
+				}
 			}
 			break;
 		case SP_SP_DRAIN_RATE_RACE:
-			if(!sd->state.lr_flag) {
-				sd->right_weapon.sp_drain[type2].rate += type3;
-				sd->right_weapon.sp_drain[type2].per += val;
+			if (type2 == RC_MAX || (type2 > RC_NONDEMIPLAYER && type2 != RC_ALL) || type2 < RC_FORMLESS ){
+				ShowWarning("pc_bonus3: SP_SP_DRAIN_RATE_RACE: Invalid Race(%d)\n",type2);
+				break;
 			}
-			else if(sd->state.lr_flag == 1) {
-				sd->left_weapon.sp_drain[type2].rate += type3;
-				sd->left_weapon.sp_drain[type2].per += val;
+			if ( type2 >= RC_MAX ) {
+				for ( i = RC_FORMLESS; i < RC_MAX; i++ ){
+					if ( (type2 == RC_NONPLAYER && i == RC_PLAYER) ||
+						 (type2 == RC_NONDEMIHUMAN && i == RC_DEMIHUMAN) ||
+						 (type2 == RC_DEMIPLAYER && (i != RC_PLAYER && i != RC_DEMIHUMAN)) ||
+						 (type2 == RC_NONDEMIPLAYER && (i == RC_PLAYER || i == RC_DEMIHUMAN))
+						)
+						continue;
+					if(!sd->state.lr_flag) {
+						sd->right_weapon.sp_drain[i].rate += type3;
+						sd->right_weapon.sp_drain[i].per += val;
+					}
+					else if(sd->state.lr_flag == 1) {
+						sd->left_weapon.sp_drain[i].rate += type3;
+						sd->left_weapon.sp_drain[i].per += val;
+					}
+				}
+			} else {
+				if(!sd->state.lr_flag) {
+					sd->right_weapon.sp_drain[type2].rate += type3;
+					sd->right_weapon.sp_drain[type2].per += val;
+				}
+				else if(sd->state.lr_flag == 1) {
+					sd->left_weapon.sp_drain[type2].rate += type3;
+					sd->left_weapon.sp_drain[type2].per += val;
+				}
 			}
 			break;
 		case SP_ADDEFF:
@@ -3479,21 +3802,33 @@ int pc_bonus3(struct map_session_data *sd,int type,int type2,int type3,int val)
 			break;
 
 		case SP_ADDELE:
-			if (type2 > ELE_MAX) {
-				ShowWarning("pc_bonus3 (SP_ADDELE): element %d is out of range.\n", type2);
+			if( (type2 >= ELE_MAX && type2 != ELE_ALL) || (type2 < ELE_NEUTRAL) ) {
+				ShowError("pc_bonus3: SP_ADDELE: Invalid element %d\n", type2);
 				break;
 			}
-			if (sd->state.lr_flag != 2)
-				pc_bonus_addele(sd, (unsigned char)type2, type3, val);
+			if ( sd->state.lr_flag != 2 ) {
+				if ( type2 == ELE_ALL ) {
+					for ( i = ELE_NEUTRAL; i < ELE_MAX; i++ )
+						pc_bonus_addele(sd, (unsigned char)i, type3, val);
+				} else {
+					pc_bonus_addele(sd, (unsigned char)type2, type3, val);
+				}
+			}
 			break;
 
 		case SP_SUBELE:
-			if (type2 > ELE_MAX) {
-				ShowWarning("pc_bonus3 (SP_SUBELE): element %d is out of range.\n", type2);
+			if( (type2 >= ELE_MAX && type2 != ELE_ALL) || (type2 < ELE_NEUTRAL) ) {
+				ShowError("pc_bonus3: SP_SUBELE: Invalid element %d\n", type2);
 				break;
 			}
-			if (sd->state.lr_flag != 2)
-				pc_bonus_subele(sd, (unsigned char)type2, type3, val);
+			if ( sd->state.lr_flag != 2 ) {
+				if ( type2 == ELE_ALL ) {
+					for ( i = ELE_NEUTRAL; i < ELE_MAX; i++ )
+						pc_bonus_subele(sd, (unsigned char)i, type3, val);
+				} else {
+					pc_bonus_subele(sd, (unsigned char)type2, type3, val);
+				}
+			}
 			break;
 		case SP_SP_VANISH_RATE:
 			if(sd->state.lr_flag != 2) {
@@ -3512,6 +3847,7 @@ int pc_bonus3(struct map_session_data *sd,int type,int type2,int type3,int val)
 }
 
 int pc_bonus4(struct map_session_data *sd,int type,int type2,int type3,int type4,int val) {
+	int i;
 	nullpo_ret(sd);
 
 	switch(type) {
@@ -3544,27 +3880,55 @@ int pc_bonus4(struct map_session_data *sd,int type,int type2,int type3,int type4
 		break;
 
 	case SP_SET_DEF_RACE: //bonus4 bSetDefRace,n,x,r,y;
-		if( type2 >= RC_MAX ) {
-			ShowWarning("pc_bonus4 (DEF_SET): %d is not supported.\n", type2);
+		if (type2 == RC_MAX || (type2 > RC_NONDEMIPLAYER && type2 != RC_ALL) || type2 < RC_FORMLESS ){
+			ShowWarning("pc_bonus4: SP_SET_DEF_RACE: Invalid Race(%d)\n",type2);
 			break;
 		}
 		if(sd->state.lr_flag == 2)
 			break;
-		sd->def_set_race[type2].rate = type3;
-		sd->def_set_race[type2].tick = type4;
-		sd->def_set_race[type2].value = val;
+		if ( type2 >= RC_MAX ) {
+			for ( i = RC_FORMLESS; i < RC_MAX; i++ ){
+				if ( (type2 == RC_NONPLAYER && i == RC_PLAYER) ||
+	 				 (type2 == RC_NONDEMIHUMAN && i == RC_DEMIHUMAN) ||
+	 				 (type2 == RC_DEMIPLAYER && (i != RC_PLAYER && i != RC_DEMIHUMAN)) ||
+	 				 (type2 == RC_NONDEMIPLAYER && (i == RC_PLAYER || i == RC_DEMIHUMAN))
+					)
+					continue;
+				sd->def_set_race[i].rate = type3;
+				sd->def_set_race[i].tick = type4;
+				sd->def_set_race[i].value = val;
+			}
+		} else {
+			sd->def_set_race[type2].rate = type3;
+			sd->def_set_race[type2].tick = type4;
+			sd->def_set_race[type2].value = val;
+		}
 		break;
 
 	case SP_SET_MDEF_RACE: //bonus4 bSetMDefRace,n,x,r,y;
-		if( type2 >= RC_MAX ) {
-			ShowWarning("pc_bonus4 (MDEF_SET): %d is not supported.\n", type2);
+		if (type2 == RC_MAX || (type2 > RC_NONDEMIPLAYER && type2 != RC_ALL) || type2 < RC_FORMLESS ){
+			ShowWarning("pc_bonus4: SP_SET_MDEF_RACE: Invalid Race(%d)\n",type2);
 			break;
 		}
 		if(sd->state.lr_flag == 2)
 			break;
-		sd->mdef_set_race[type2].rate = type3;
-		sd->mdef_set_race[type2].tick = type4;
-		sd->mdef_set_race[type2].value = val;
+		if ( type2 >= RC_MAX ) {
+			for ( i = RC_FORMLESS; i < RC_MAX; i++ ){
+				if ( (type2 == RC_NONPLAYER && i == RC_PLAYER) ||
+	 				 (type2 == RC_NONDEMIHUMAN && i == RC_DEMIHUMAN) ||
+	 				 (type2 == RC_DEMIPLAYER && (i != RC_PLAYER && i != RC_DEMIHUMAN)) ||
+	 				 (type2 == RC_NONDEMIPLAYER && (i == RC_PLAYER || i == RC_DEMIHUMAN))
+					)
+					continue;
+				sd->mdef_set_race[i].rate = type3;
+				sd->mdef_set_race[i].tick = type4;
+				sd->mdef_set_race[i].value = val;
+			}
+		} else {
+			sd->mdef_set_race[type2].rate = type3;
+			sd->mdef_set_race[type2].tick = type4;
+			sd->mdef_set_race[type2].value = val;
+		}
 		break;
 
 	case SP_ADDEFF:
@@ -3622,13 +3986,11 @@ int pc_bonus5(struct map_session_data *sd,int type,int type2,int type3,int type4
 }
 
 /*==========================================
- * Grants a player a given skill. Flag values are:
- * 0 - Grant permanent skill to be bound to skill tree
- * 1 - Grant an item skill (temporary)
- * 2 - Like 1, except the level granted can stack with previously learned level.
- * 3 - Grant skill unconditionally and forever (persistent to job changes and skill resets)
+ * Grants a player a given skill.
+ * Flag values: @see enum pc_skill_flag
  *------------------------------------------*/
-int pc_skill(TBL_PC* sd, int id, int level, int flag) {
+int pc_skill(TBL_PC* sd, int id, int level, int flag)
+{
 	uint16 index = 0;
 	nullpo_ret(sd);
 
@@ -3640,13 +4002,13 @@ int pc_skill(TBL_PC* sd, int id, int level, int flag) {
 		ShowError("pc_skill: Skill level %d too high. Max lv supported is %d\n", level, MAX_SKILL_LEVEL);
 		return 0;
 	}
-	if( flag == 2 && sd->status.skill[index].lv + level > MAX_SKILL_LEVEL ) {
+	if( flag == SKILL_GRANT_TEMPSTACK && sd->status.skill[index].lv + level > MAX_SKILL_LEVEL ) {
 		ShowError("pc_skill: Skill level bonus %d too high. Max lv supported is %d. Curr lv is %d\n", level, MAX_SKILL_LEVEL, sd->status.skill[index].lv);
 		return 0;
 	}
 
 	switch( flag ){
-		case 0: //Set skill data overwriting whatever was there before.
+		case SKILL_GRANT_PERMANENT: //Set skill data overwriting whatever was there before.
 			sd->status.skill[index].id   = id;
 			sd->status.skill[index].lv   = level;
 			sd->status.skill[index].flag = SKILL_FLAG_PERMANENT;
@@ -3658,7 +4020,7 @@ int pc_skill(TBL_PC* sd, int id, int level, int flag) {
 			if( !skill->db[index].inf ) //Only recalculate for passive skills.
 				status_calc_pc(sd, SCO_NONE);
 		break;
-		case 1: //Item bonus skill.
+		case SKILL_GRANT_TEMPORARY: //Item bonus skill.
 			if( sd->status.skill[index].id == id ) {
 				if( sd->status.skill[index].lv >= level )
 					return 0;
@@ -3670,7 +4032,7 @@ int pc_skill(TBL_PC* sd, int id, int level, int flag) {
 			}
 			sd->status.skill[index].lv = level;
 		break;
-		case 2: //Add skill bonus on top of what you had.
+		case SKILL_GRANT_TEMPSTACK: //Add skill bonus on top of what you had.
 			if( sd->status.skill[index].id == id ) {
 				if( sd->status.skill[index].flag == SKILL_FLAG_PERMANENT )
 					sd->status.skill[index].flag = SKILL_FLAG_REPLACED_LV_0 + sd->status.skill[index].lv; // Store previous level.
@@ -3680,7 +4042,7 @@ int pc_skill(TBL_PC* sd, int id, int level, int flag) {
 			}
 			sd->status.skill[index].lv += level;
 		break;
-		case 3:
+		case SKILL_GRANT_UNCONDITIONAL:
 			sd->status.skill[index].id   = id;
 			sd->status.skill[index].lv   = level;
 			sd->status.skill[index].flag = SKILL_FLAG_PERM_GRANTED;
@@ -3692,8 +4054,8 @@ int pc_skill(TBL_PC* sd, int id, int level, int flag) {
 			if( !skill->db[index].inf ) //Only recalculate for passive skills.
 				status_calc_pc(sd, SCO_NONE);
 			break;
-	default: //Unknown flag?
-		return 0;
+		default: //Unknown flag?
+			return 0;
 	}
 	return 1;
 }
@@ -3737,7 +4099,7 @@ int pc_insert_card(struct map_session_data* sd, int idx_card, int idx_equip)
 	// remember the card id to insert
 	nameid = sd->status.inventory[idx_card].nameid;
 
-	if( pc->delitem(sd,idx_card,1,1,0,LOG_TYPE_OTHER) == 1 )
+	if( pc->delitem(sd, idx_card, 1, 1, DELITEM_NORMAL, LOG_TYPE_OTHER) == 1 )
 	{// failed
 		clif->insert_card(sd,idx_equip,idx_card,1);
 	}
@@ -4144,6 +4506,7 @@ int pc_additem(struct map_session_data *sd,struct item *item_data,int amount,e_l
  * @type
  *   1 : don't notify deletion
  *   2 : don't notify weight change
+ * reason: @see enum delitem_reason
  * Return:
  *   0 = success
  *   1 = invalid itemid or negative amount
@@ -4161,7 +4524,7 @@ int pc_delitem(struct map_session_data *sd,int n,int amount,int type, short reas
 	sd->weight -= sd->inventory_data[n]->weight*amount ;
 	if( sd->status.inventory[n].amount <= 0 ){
 		if(sd->status.inventory[n].equip)
-			pc->unequipitem(sd,n,3);
+			pc->unequipitem(sd, n, PCUNEQUIPITEM_RECALC|PCUNEQUIPITEM_FORCE);
 		memset(&sd->status.inventory[n],0,sizeof(sd->status.inventory[0]));
 		sd->inventory_data[n] = NULL;
 	}
@@ -4211,7 +4574,7 @@ int pc_dropitem(struct map_session_data *sd,int n,int amount)
 	if (!map->addflooritem(&sd->status.inventory[n], amount, sd->bl.m, sd->bl.x, sd->bl.y, 0, 0, 0, 2))
 		return 0;
 
-	pc->delitem(sd, n, amount, 1, 0, LOG_TYPE_PICKDROP_PLAYER);
+	pc->delitem(sd, n, amount, 1, DELITEM_NORMAL, LOG_TYPE_PICKDROP_PLAYER);
 	clif->dropitem(sd, n, amount);
 	return 1;
 }
@@ -4308,12 +4671,12 @@ int pc_isUseitem(struct map_session_data *sd,int n)
 
 	if ((item->item_usage.flag&INR_SITTING) && (pc_issit(sd) == 1) && (pc_get_group_level(sd) < item->item_usage.override)) {
 		clif->msgtable(sd, MSG_ITEM_NEED_STANDING);
-		//clif->colormes(sd->fd,COLOR_WHITE,msg_txt(1474));
+		//clif->messagecolor_self(sd->fd, COLOR_WHITE, msg_txt(1474));
 		return 0; // You cannot use this item while sitting.
 	}
 
-	if (sd->state.storage_flag && item->type != IT_CASH) {
-		clif->colormes(sd->fd, COLOR_RED, msg_sd(sd,1475));
+	if (sd->state.storage_flag != STORAGE_FLAG_CLOSED && item->type != IT_CASH) {
+		clif->messagecolor_self(sd->fd, COLOR_RED, msg_sd(sd,1475));
 		return 0; // You cannot use this item while storage is open.
 	}
 
@@ -4416,8 +4779,8 @@ int pc_isUseitem(struct map_session_data *sd,int n)
 			clif->msgtable(sd, MSG_ITEM_CANT_OBTAIN_WEIGHT);
 			return 0;
 		}
-		if( !pc->inventoryblank(sd) ) {
-			clif->colormes(sd->fd,COLOR_RED,msg_sd(sd,1477));
+		if (!pc->inventoryblank(sd)) {
+			clif->messagecolor_self(sd->fd, COLOR_RED, msg_sd(sd,1477));
 			return 0;
 		}
 	}
@@ -4573,7 +4936,7 @@ int pc_useitem(struct map_session_data *sd,int n) {
 			clif->msgtable(sd, MSG_ITEM_CANT_USE_AREA); // This item cannot be used within this area
 			if( battle_config.item_restricted_consumption_type && sd->status.inventory[n].expire_time == 0 ) {
 				clif->useitemack(sd,n,sd->status.inventory[n].amount-1,true);
-				pc->delitem(sd,n,1,1,0,LOG_TYPE_CONSUME);
+				pc->delitem(sd, n, 1, 1, DELITEM_NORMAL, LOG_TYPE_CONSUME);
 			}
 			return 0;
 		}
@@ -4596,7 +4959,7 @@ int pc_useitem(struct map_session_data *sd,int n) {
 	else {
 		if (sd->status.inventory[n].expire_time == 0) {
 			clif->useitemack(sd, n, amount - 1, true);
-			pc->delitem(sd, n, 1, 1, 0, LOG_TYPE_CONSUME); // Rental Usable Items are not deleted until expiration
+			pc->delitem(sd, n, 1, 1, DELITEM_NORMAL, LOG_TYPE_CONSUME); // Rental Usable Items are not deleted until expiration
 		} else {
 			clif->useitemack(sd, n, 0, false);
 		}
@@ -4744,7 +5107,7 @@ int pc_putitemtocart(struct map_session_data *sd,int idx,int amount)
 		return 1;
 
 	if( (flag = pc->cart_additem(sd,item_data,amount,LOG_TYPE_NONE)) == 0 )
-		return pc->delitem(sd,idx,amount,0,5,LOG_TYPE_NONE);
+		return pc->delitem(sd, idx, amount, 0, DELITEM_TOCART, LOG_TYPE_NONE);
 
 	return flag;
 }
@@ -4803,7 +5166,7 @@ void pc_bound_clear(struct map_session_data *sd, enum e_item_bound_type type) {
 		case IBT_CHARACTER:
 			for( i = 0; i < MAX_INVENTORY; i++ ){
 				if( sd->status.inventory[i].bound == type ) {
-					pc->delitem(sd,i,sd->status.inventory[i].amount,0,1,LOG_TYPE_OTHER);
+					pc->delitem(sd, i, sd->status.inventory[i].amount, 0, DELITEM_SKILLUSE, LOG_TYPE_OTHER); // FIXME: is this the correct reason flag?
 				}
 			}
 			break;
@@ -4817,7 +5180,7 @@ void pc_bound_clear(struct map_session_data *sd, enum e_item_bound_type type) {
 					if(sd->status.inventory[i].bound == type) {
 						if( gstor )
 							gstorage->additem(sd,gstor,&sd->status.inventory[i],sd->status.inventory[i].amount);
-						pc->delitem(sd,i,sd->status.inventory[i].amount,0,1,gstor?LOG_TYPE_GSTORAGE:LOG_TYPE_OTHER);
+						pc->delitem(sd, i, sd->status.inventory[i].amount, 0, DELITEM_SKILLUSE, gstor ? LOG_TYPE_GSTORAGE : LOG_TYPE_OTHER); // FIXME: is this the correct reason flag?
 					}
 				}
 				if( gstor )
@@ -5086,7 +5449,7 @@ int pc_setpos(struct map_session_data* sd, unsigned short map_index, int x, int 
 		for( i = 0; i < EQI_MAX; i++ ) {
 			if( sd->equip_index[ i ] >= 0 )
 				if( !pc->isequip( sd , sd->equip_index[ i ] ) )
-					pc->unequipitem( sd , sd->equip_index[ i ] , 2 );
+					pc->unequipitem(sd, sd->equip_index[i], PCUNEQUIPITEM_FORCE);
 		}
 		if (battle_config.clear_unit_onwarp&BL_PC)
 			skill->clear_unitgroup(&sd->bl);
@@ -6083,7 +6446,7 @@ int pc_stop_following (struct map_session_data *sd)
 	sd->followtarget = -1;
 	sd->ud.target_to = 0;
 
-	unit->stop_walking(&sd->bl, 1);
+	unit->stop_walking(&sd->bl, STOPWALKING_FLAG_FIXPOS);
 	
 	return 0;
 }
@@ -6156,7 +6519,7 @@ void pc_baselevelchanged(struct map_session_data *sd) {
 	for( i = 0; i < EQI_MAX; i++ ) {
 		if( sd->equip_index[i] >= 0 ) {
 			if( sd->inventory_data[ sd->equip_index[i] ]->elvmax && sd->status.base_level > (unsigned int)sd->inventory_data[ sd->equip_index[i] ]->elvmax )
-				pc->unequipitem(sd, sd->equip_index[i], 3);
+				pc->unequipitem(sd, sd->equip_index[i], PCUNEQUIPITEM_RECALC|PCUNEQUIPITEM_FORCE);
 		}
 	}
 }
@@ -6625,14 +6988,12 @@ int pc_skillup(struct map_session_data *sd,uint16 skill_id) {
 		if (!pc_has_permission(sd, PC_PERM_ALL_SKILL)) // may skill everything at any time anyways, and this would cause a huge slowdown
 			clif->skillinfoblock(sd);
 	} else if( battle_config.skillup_limit ){
-		if( sd->sktree.second )
+		if (sd->sktree.second)
 			clif->msgtable_num(sd, MSG_SKILL_POINTS_LEFT_JOB1, sd->sktree.second);
-		else if( sd->sktree.third )
+		else if (sd->sktree.third)
 			clif->msgtable_num(sd, MSG_SKILL_POINTS_LEFT_JOB2, sd->sktree.third);
-		else if( pc->calc_skillpoint(sd) < 9 ) {
-			/* TODO: official response? */
-			clif->colormes(sd->fd,COLOR_RED,"You need the basic skills");
-		}
+		else if (pc->calc_skillpoint(sd) < 9) /* TODO: official response? */
+			clif->messagecolor_self(sd->fd, COLOR_RED, "You need the basic skills");
 	}
 	return 0;
 }
@@ -6702,9 +7063,9 @@ int pc_resetlvl(struct map_session_data* sd,int type)
 	nullpo_ret(sd);
 
 	if (type != 3) //Also reset skills
-		pc->resetskill(sd, 0);
+		pc->resetskill(sd, PCRESETSKILL_NONE);
 
-	if(type == 1){
+	if(type == 1) {
 		sd->status.skill_point=0;
 		sd->status.base_level=1;
 		sd->status.job_level=1;
@@ -6722,8 +7083,8 @@ int pc_resetlvl(struct map_session_data* sd,int type)
 		if(sd->status.class_ == JOB_NOVICE_HIGH) {
 			sd->status.status_point=100; // not 88 [celest]
 			// give platinum skills upon changing
-			pc->skill(sd,142,1,0);
-			pc->skill(sd,143,1,0);
+			pc->skill(sd, NV_FIRSTAID, 1, SKILL_GRANT_PERMANENT);
+			pc->skill(sd, NV_TRICKDEAD, 1, SKILL_GRANT_PERMANENT);
 		}
 	}
 
@@ -6769,7 +7130,7 @@ int pc_resetlvl(struct map_session_data* sd,int type)
 	for(i=0;i<EQI_MAX;i++) { // unequip items that can't be equipped by base 1 [Valaris]
 		if(sd->equip_index[i] >= 0)
 			if(!pc->isequip(sd,sd->equip_index[i]))
-				pc->unequipitem(sd,sd->equip_index[i],2);
+				pc->unequipitem(sd, sd->equip_index[i], PCUNEQUIPITEM_FORCE);
 	}
 
 	if ((type == 1 || type == 2 || type == 3) && sd->status.party_id)
@@ -6847,19 +7208,17 @@ int pc_resetstate(struct map_session_data* sd)
 
 /*==========================================
  * /resetskill
- * if flag&1, perform block resync and status_calc call.
- * if flag&2, just count total amount of skill points used by player, do not really reset.
- * if flag&4, just reset the skills if the player class is a bard/dancer type (for changesex.)
+ * @param flag: @see enum pc_resetskill_flag
  *------------------------------------------*/
 int pc_resetskill(struct map_session_data* sd, int flag)
 {
 	int i, inf2, skill_point=0;
 	nullpo_ret(sd);
 
-	if( flag&4 && (sd->class_&MAPID_UPPERMASK) != MAPID_BARDDANCER )
+	if( flag&PCRESETSKILL_CHSEX && (sd->class_&MAPID_UPPERMASK) != MAPID_BARDDANCER )
 		return 0;
 
-	if( !(flag&2) ) { //Remove stuff lost when resetting skills.
+	if( !(flag&PCRESETSKILL_RECOUNT) ) { //Remove stuff lost when resetting skills.
 
 		/**
 		 * It has been confirmed on official server that when you reset skills with a ranked tweakwon your skills are not reset (because you have all of them anyway)
@@ -6924,12 +7283,12 @@ int pc_resetskill(struct map_session_data* sd, int flag)
 		if( sd->status.skill[i].flag == SKILL_FLAG_PERM_GRANTED )
 			continue;
 		
-		if( flag&4 && !skill_ischangesex(i) )
+		if( flag&PCRESETSKILL_CHSEX && !skill_ischangesex(i) )
 			continue;
 
 		if( inf2&INF2_QUEST_SKILL && !battle_config.quest_skill_learn ) {
 			//Only handle quest skills in a special way when you can't learn them manually
-			if( battle_config.quest_skill_reset && !(flag&2) ) { //Wipe them
+			if( battle_config.quest_skill_reset && !(flag&PCRESETSKILL_RECOUNT) ) { //Wipe them
 				sd->status.skill[i].lv = 0;
 				sd->status.skill[i].flag = 0;
 			}
@@ -6940,18 +7299,18 @@ int pc_resetskill(struct map_session_data* sd, int flag)
 		else if( sd->status.skill[i].flag >= SKILL_FLAG_REPLACED_LV_0 )
 			skill_point += (sd->status.skill[i].flag - SKILL_FLAG_REPLACED_LV_0);
 
-		if( !(flag&2) ) {// reset
+		if( !(flag&PCRESETSKILL_RECOUNT) ) {// reset
 			sd->status.skill[i].lv = 0;
 			sd->status.skill[i].flag = 0;
 		}
 	}
 
-	if( flag&2 || !skill_point ) return skill_point;
+	if( flag&PCRESETSKILL_RECOUNT || !skill_point ) return skill_point;
 
 	sd->status.skill_point += skill_point;
 
 
-	if( !(flag&2) ) {
+	if (!(flag&PCRESETSKILL_RECOUNT)) {
 		// Remove all SCs that can't be inactivated without a skill
 		if( sd->sc.data[SC_STORMKICK_READY] )
 			status_change_end(&sd->bl, SC_STORMKICK_READY, INVALID_TIMER);
@@ -6965,7 +7324,7 @@ int pc_resetskill(struct map_session_data* sd, int flag)
 			status_change_end(&sd->bl, SC_DODGE_READY, INVALID_TIMER);
 	}
 
-	if( flag&1 ) {
+	if (flag&PCRESETSKILL_RESYNC) {
 		clif->updatestatus(sd,SP_SKILLPOINT);
 		clif->skillinfoblock(sd);
 		status_calc_pc(sd,SCO_FORCE);
@@ -6997,8 +7356,7 @@ int pc_resethate(struct map_session_data* sd)
 	int i;
 	nullpo_ret(sd);
 
-	for (i=0; i<3; i++)
-	{
+	for (i = 0; i < MAX_PC_FEELHATE; i++) {
 		sd->hate_mob[i] = -1;
 		pc_setglobalreg(sd,script->add_str(pc->sg_info[i].hate_var),0);
 	}
@@ -7115,8 +7473,8 @@ int pc_dead(struct map_session_data *sd,struct block_list *src) {
 
 	nullpo_retr(0, sd);
 
-	for(j = 0; j < 5; j++) {
-		if (sd->devotion[j]){
+	for (j = 0; j < MAX_PC_DEVOTION; j++) {
+		if (sd->devotion[j]) {
 			struct map_session_data *devsd = map->id2sd(sd->devotion[j]);
 			if (devsd)
 				status_change_end(&devsd->bl, SC_DEVOTION, INVALID_TIMER);
@@ -7220,7 +7578,7 @@ int pc_dead(struct map_session_data *sd,struct block_list *src) {
 					mob->unlocktarget(md,tick);
 				if (battle_config.mobs_level_up && md->status.hp
 				 && (unsigned int)md->level < pc->maxbaselv(sd)
-				 && !md->guardian_data && !md->special_state.ai// Guardians/summons should not level. [Skotlex]
+				 && !md->guardian_data && md->special_state.ai == AI_NONE// Guardians/summons should not level. [Skotlex]
 				) {
 					// monster level up [Valaris]
 					clif->misceffect(&md->bl,0);
@@ -7400,7 +7758,7 @@ int pc_dead(struct map_session_data *sd,struct block_list *src) {
 					int n = eq_n[rnd()%eq_num];
 					if(rnd()%10000 < per){
 						if(sd->status.inventory[n].equip)
-							pc->unequipitem(sd,n,3);
+							pc->unequipitem(sd, n, PCUNEQUIPITEM_RECALC|PCUNEQUIPITEM_FORCE);
 						pc->dropitem(sd,n,1);
 					}
 				}
@@ -7413,7 +7771,7 @@ int pc_dead(struct map_session_data *sd,struct block_list *src) {
 							|| (type == 2 && sd->status.inventory[i].equip)
 							|| type == 3) ){
 						if(sd->status.inventory[i].equip)
-							pc->unequipitem(sd,i,3);
+							pc->unequipitem(sd, i, PCUNEQUIPITEM_RECALC|PCUNEQUIPITEM_FORCE);
 						pc->dropitem(sd,i,1);
 						break;
 					}
@@ -8062,7 +8420,7 @@ int pc_jobchange(struct map_session_data *sd,int job, int upper)
 	for(i=0;i<EQI_MAX;i++) {
 		if(sd->equip_index[i] >= 0)
 			if(!pc->isequip(sd,sd->equip_index[i]))
-				pc->unequipitem(sd,sd->equip_index[i],2); // unequip invalid item for class
+				pc->unequipitem(sd,sd->equip_index[i], PCUNEQUIPITEM_FORCE); // unequip invalid item for class
 	}
 
 	//Change look, if disguised, you need to undisguise
@@ -8257,7 +8615,7 @@ int pc_setoption(struct map_session_data *sd,int type)
 		if(pc->checkskill(sd, MC_PUSHCART) < 10)
 			status_calc_pc(sd,SCO_NONE); //Remove speed penalty.
 		if ( sd->equip_index[EQI_AMMO] > 0 )
-			pc->unequipitem(sd, sd->equip_index[EQI_AMMO], 2);
+			pc->unequipitem(sd, sd->equip_index[EQI_AMMO], PCUNEQUIPITEM_FORCE);
 	}
 #endif
 
@@ -8294,7 +8652,7 @@ int pc_setoption(struct map_session_data *sd,int type)
 			status_change_end(&sd->bl, (sc_type)i, INVALID_TIMER);
 		}
 		if ( sd->equip_index[EQI_AMMO] > 0 )
-			pc->unequipitem(sd, sd->equip_index[EQI_AMMO], 2);
+			pc->unequipitem(sd, sd->equip_index[EQI_AMMO], PCUNEQUIPITEM_FORCE);
 	}
 
 	if (type&OPTION_FLYING && !(p_type&OPTION_FLYING))
@@ -8348,7 +8706,7 @@ int pc_setcart(struct map_session_data *sd,int type) {
 			clif->clearcart(sd->fd);
 			clif->updatestatus(sd, SP_CARTINFO);
 			if ( sd->equip_index[EQI_AMMO] > 0 )
-				pc->unequipitem(sd, sd->equip_index[EQI_AMMO], 2);
+				pc->unequipitem(sd, sd->equip_index[EQI_AMMO], PCUNEQUIPITEM_FORCE);
 			break;
 		default:/* everything else is an allowed ID so we can move on */
 			if( !sd->sc.data[SC_PUSH_CART] ) /* first time, so fill cart data */
@@ -9199,7 +9557,7 @@ int pc_equipitem(struct map_session_data *sd,int n,int req_pos)
 	for(i=0;i<EQI_MAX;i++) {
 		if(pos & pc->equip_pos[i]) {
 			if(sd->equip_index[i] >= 0) //Slot taken, remove item from there.
-				pc->unequipitem(sd,sd->equip_index[i],2);
+				pc->unequipitem(sd, sd->equip_index[i], PCUNEQUIPITEM_FORCE);
 
 			sd->equip_index[i] = n;
 		}
@@ -9320,15 +9678,13 @@ void pc_unequipitem_pos(struct map_session_data *sd, int n, int pos)
 
 /*==========================================
  * Called when attemting to unequip an item from player
- * type:
- * 0 - only unequip
- * 1 - calculate status after unequipping
- * 2 - force unequip
+ * type: @see enum pc_unequipitem_flag
  * Return:
  *   0 = fail
  *   1 = success
  *------------------------------------------*/
-int pc_unequipitem(struct map_session_data *sd,int n,int flag) {
+int pc_unequipitem(struct map_session_data *sd,int n,int flag)
+{
 	int i,iflag;
 	bool status_cacl = false;
 	int pos;
@@ -9340,13 +9696,13 @@ int pc_unequipitem(struct map_session_data *sd,int n,int flag) {
 	}
 
 	// if player is berserk then cannot unequip
-	if (!(flag & 2) && sd->sc.count && (sd->sc.data[SC_BERSERK] || sd->sc.data[SC_NO_SWITCH_EQUIP]) )
+	if (!(flag&PCUNEQUIPITEM_FORCE) && sd->sc.count && (sd->sc.data[SC_BERSERK] || sd->sc.data[SC_NO_SWITCH_EQUIP]) )
 	{
 		clif->unequipitemack(sd,n,0,UIA_FAIL);
 		return 0;
 	}
 
-	if( !(flag&2) && sd->sc.count && sd->sc.data[SC_KYOUGAKU] )
+	if( !(flag&PCUNEQUIPITEM_FORCE) && sd->sc.count && sd->sc.data[SC_KYOUGAKU] )
 	{
 		clif->unequipitemack(sd,n,0,UIA_FAIL);
 		return 0;
@@ -9407,7 +9763,7 @@ int pc_unequipitem(struct map_session_data *sd,int n,int flag) {
 		}
 	}
 
-	if(flag&1 || status_cacl) {
+	if(flag&PCUNEQUIPITEM_RECALC || status_cacl) {
 		pc->checkallowskill(sd);
 		status_calc_pc(sd,SCO_NONE);
 	}
@@ -9478,7 +9834,7 @@ int pc_checkitem(struct map_session_data *sd)
 
 			if (!itemdb_available(id)) {
 				ShowWarning("Removed invalid/disabled item id %d from inventory (amount=%d, char_id=%d).\n", id, sd->status.inventory[i].amount, sd->status.char_id);
-				pc->delitem(sd, i, sd->status.inventory[i].amount, 0, 0, LOG_TYPE_OTHER);
+				pc->delitem(sd, i, sd->status.inventory[i].amount, 0, DELITEM_NORMAL, LOG_TYPE_OTHER);
 				continue;
 			}
 
@@ -9552,28 +9908,28 @@ int pc_checkitem(struct map_session_data *sd)
 			continue;
 
 		if( sd->status.inventory[i].equip&~pc->equippoint(sd,i) ) {
-			pc->unequipitem(sd, i, 2);
+			pc->unequipitem(sd, i, PCUNEQUIPITEM_FORCE);
 			calc_flag = 1;
 			continue;
 		}
 
-		if ( battle_config.unequip_restricted_equipment & 1 ) {
+		if (battle_config.unequip_restricted_equipment&1) {
 			int j;
-			for ( j = 0; j < map->list[sd->bl.m].zone->disabled_items_count; j++ ) {
-				if ( map->list[sd->bl.m].zone->disabled_items[j] == sd->status.inventory[i].nameid ) {
-					pc->unequipitem( sd, i, 2 );
+			for (j = 0; j < map->list[sd->bl.m].zone->disabled_items_count; j++) {
+				if (map->list[sd->bl.m].zone->disabled_items[j] == sd->status.inventory[i].nameid) {
+					pc->unequipitem(sd, i, PCUNEQUIPITEM_FORCE);
 					calc_flag = 1;
 				}
 			}
 		}
 
-		if ( battle_config.unequip_restricted_equipment & 2 ) {
-			if ( !itemdb_isspecial( sd->status.inventory[i].card[0] ) ) {
+		if (battle_config.unequip_restricted_equipment&2) {
+			if (!itemdb_isspecial(sd->status.inventory[i].card[0])) {
 				int j, slot;
-				for ( slot = 0; slot < MAX_SLOTS; slot++ ) {
-					for ( j = 0; j < map->list[sd->bl.m].zone->disabled_items_count; j++ ) {
-						if ( map->list[sd->bl.m].zone->disabled_items[j] == sd->status.inventory[i].card[slot] ) {
-							pc->unequipitem( sd, i, 2 );
+				for (slot = 0; slot < MAX_SLOTS; slot++) {
+					for (j = 0; j < map->list[sd->bl.m].zone->disabled_items_count; j++) {
+						if (map->list[sd->bl.m].zone->disabled_items[j] == sd->status.inventory[i].card[slot]) {
+							pc->unequipitem(sd, i, PCUNEQUIPITEM_FORCE);
 							calc_flag = 1;
 						}
 					}
@@ -9709,9 +10065,9 @@ int pc_divorce(struct map_session_data *sd)
 	for( i = 0; i < MAX_INVENTORY; i++ )
 	{
 		if( sd->status.inventory[i].nameid == WEDDING_RING_M || sd->status.inventory[i].nameid == WEDDING_RING_F )
-			pc->delitem(sd, i, 1, 0, 0, LOG_TYPE_OTHER);
+			pc->delitem(sd, i, 1, 0, DELITEM_NORMAL, LOG_TYPE_OTHER);
 		if( p_sd->status.inventory[i].nameid == WEDDING_RING_M || p_sd->status.inventory[i].nameid == WEDDING_RING_F )
-			pc->delitem(p_sd, i, 1, 0, 0, LOG_TYPE_OTHER);
+			pc->delitem(p_sd, i, 1, 0, DELITEM_NORMAL, LOG_TYPE_OTHER);
 	}
 
 	clif->divorced(sd, p_sd->status.name);
@@ -10477,8 +10833,8 @@ int pc_readdb(void) {
 
 	// Reset then read attr_fix
 	for(i=0;i<4;i++)
-		for(j=0;j<ELE_MAX;j++)
-			for(k=0;k<ELE_MAX;k++)
+		for ( j = ELE_NEUTRAL; j<ELE_MAX; j++ )
+			for ( k = ELE_NEUTRAL; k<ELE_MAX; k++ )
 				battle->attr_fix_table[i][j][k]=100;
 
 	sprintf(line, "%s/"DBPATH"attr_fix.txt", map->db_path);
@@ -10505,13 +10861,13 @@ int pc_readdb(void) {
 		lv=atoi(split[0]);
 		n=atoi(split[1]);
 		count++;
-		for(i=0;i<n && i<ELE_MAX;){
+		for ( i = ELE_NEUTRAL; i<n && i<ELE_MAX; ) {
 			if( !fgets(line, sizeof(line), fp) )
 				break;
 			if(line[0]=='/' && line[1]=='/')
 				continue;
 
-			for(j=0,p=line;j<n && j<ELE_MAX && p;j++){
+			for ( j = ELE_NEUTRAL, p = line; j<n && j<ELE_MAX && p; j++ ) {
 				while(*p==32 && *p>0)
 					p++;
 				battle->attr_fix_table[lv-1][i][j]=atoi(p);
@@ -10639,15 +10995,15 @@ void pc_bank_deposit(struct map_session_data *sd, int money) {
 void pc_bank_withdraw(struct map_session_data *sd, int money) {
 	unsigned int limit_check = money+sd->status.zeny;
 	
-	if( money <= 0 ) {
+	if (money <= 0) {
 		clif->bank_withdraw(sd,BWA_UNKNOWN_ERROR);
 		return;
-	} else if ( money > sd->status.bank_vault ) {
+	} else if (money > sd->status.bank_vault) {
 		clif->bank_withdraw(sd,BWA_NO_MONEY);
 		return;
-	} else if ( limit_check > MAX_ZENY ) {
+	} else if (limit_check > MAX_ZENY) {
 		/* no official response for this scenario exists. */
-		clif->colormes(sd->fd,COLOR_RED,msg_sd(sd,1482));
+		clif->messagecolor_self(sd->fd, COLOR_RED, msg_sd(sd,1482));
 		return;
 	}
 	
@@ -11247,6 +11603,7 @@ void pc_defaults(void) {
 	pc->addfame = pc_addfame;
 	pc->famerank = pc_famerank;
 	pc->set_hate_mob = pc_set_hate_mob;
+	pc->getmaxspiritball = pc_getmaxspiritball;
 	
 	pc->readdb = pc_readdb;
 	pc->map_day_timer = map_day_timer; // by [yor]

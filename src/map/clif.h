@@ -5,40 +5,38 @@
 #ifndef MAP_CLIF_H
 #define MAP_CLIF_H
 
-#include <stdarg.h>
+#include "map/map.h"
+#include "map/packets_struct.h"
+#include "common/cbasetypes.h"
+#include "common/mmo.h"
 
-#include "map.h"
-#include "packets_struct.h"
-#include "../common/cbasetypes.h"
-#include "../common/db.h"
-#include "../common/mmo.h"
+#include <stdarg.h>
 
 /**
  * Declarations
  **/
+struct battleground_data;
+struct channel_data;
+struct chat_data;
+struct eri;
+struct flooritem_data;
+struct guild;
+struct homun_data;
 struct item;
 struct item_data;
-struct unit_data;
 struct map_session_data;
-struct homun_data;
 struct mercenary_data;
-struct pet_data;
 struct mob_data;
 struct npc_data;
-struct chat_data;
-struct flooritem_data;
-struct skill_unit;
-struct s_vending;
-struct party;
-struct party_data;
-struct guild;
-struct battleground_data;
-struct quest;
 struct party_booking_ad_info;
-struct view_data;
-struct eri;
+struct party_data;
+struct pet_data;
+struct quest;
+struct s_vending;
 struct skill_cd;
-struct channel_data;
+struct skill_unit;
+struct unit_data;
+struct view_data;
 
 /**
  * Defines
@@ -49,6 +47,12 @@ struct channel_data;
 #define clif_disp_onlyself(sd,mes,len) clif->disp_message( &(sd)->bl, (mes), (len), SELF )
 #define MAX_ROULETTE_LEVEL 7 /** client-defined value **/
 #define MAX_ROULETTE_COLUMNS 9 /** client-defined value **/
+#define RGB2BGR(c) ((c & 0x0000FF) << 16 | (c & 0x00FF00) | (c & 0xFF0000) >> 16)
+
+#define COLOR_RED     0xff0000U
+#define COLOR_GREEN   0x00ff00U
+#define COLOR_WHITE   0xffffffU
+#define COLOR_DEFAULT COLOR_GREEN
 
 /**
  * Enumerations
@@ -385,16 +389,6 @@ enum cashshop_error {
 	ERROR_TYPE_NOT_ALL          = 8, ///< Some items could not be purchased. (ERROR_TYPE_NOT_ALL)
 };
 
-/**
- * Color Table
- **/
-enum clif_colors {
-	COLOR_RED,
-	COLOR_DEFAULT,
-	COLOR_WHITE,
-	COLOR_MAX
-};
-
 enum CASH_SHOP_TABS {
 	CASHSHOP_TAB_NEW        = 0,
 	CASHSHOP_TAB_POPULAR    = 1,
@@ -515,6 +509,20 @@ enum CLOSE_ROULETTE_ACK {
 };
 
 /**
+ * Reason for item deletion (clif->delitem)
+ */
+enum delitem_reason {
+	DELITEM_NORMAL         = 0, /// Normal
+	DELITEM_SKILLUSE       = 1, /// Item used for a skill
+	DELITEM_FAILREFINE     = 2, /// Refine failed
+	DELITEM_MATERIALCHANGE = 3, /// Material changed
+	DELITEM_TOSTORAGE      = 4, /// Moved to storage
+	DELITEM_TOCART         = 5, /// Moved to cart
+	DELITEM_SOLD           = 6, /// Item sold
+	DELITEM_ANALYSIS       = 7, /// Consumed by Four Spirit Analysis (SO_EL_ANALYSIS) skill
+};
+
+/**
  * Structures
  **/
 typedef void (*pFunc)(int, struct map_session_data *); //cant help but put it first
@@ -538,7 +546,6 @@ struct cdelayed_damage {
  * Vars
  **/
 struct s_packet_db packet_db[MAX_PACKET_DB + 1];
-unsigned int color_table[COLOR_MAX];
 
 /**
  * Clif.c Interface
@@ -816,7 +823,8 @@ struct clif_interface {
 	void (*disp_message) (struct block_list* src, const char* mes, size_t len, enum send_target target);
 	void (*broadcast) (struct block_list* bl, const char* mes, size_t len, int type, enum send_target target);
 	void (*broadcast2) (struct block_list* bl, const char* mes, size_t len, unsigned int fontColor, short fontType, short fontSize, short fontAlign, short fontY, enum send_target target);
-	void (*messagecolor) (struct block_list* bl, unsigned int color, const char* msg);
+	void (*messagecolor_self) (int fd, uint32 color, const char *msg);
+	void (*messagecolor) (struct block_list* bl, uint32 color, const char* msg);
 	void (*disp_overhead) (struct block_list *bl, const char* mes);
 	void (*msgtable) (struct map_session_data* sd, unsigned short msg_id);
 	void (*msgtable_num) (struct map_session_data *sd, unsigned short msg_id, int value);
@@ -825,7 +833,6 @@ struct clif_interface {
 	void (*messageln) (const int fd, const char* mes);
 	/* message+s(printf) */
 	void (*messages) (const int fd, const char *mes, ...) __attribute__((format(printf, 2, 3)));
-	int (*colormes) (int fd, enum clif_colors color, const char* msg);
 	bool (*process_message) (struct map_session_data *sd, int format, char **name_, size_t *namelen_, char **message_, size_t *messagelen_);
 	void (*wisexin) (struct map_session_data *sd,int type,int flag);
 	void (*wisall) (struct map_session_data *sd,int type,int flag);

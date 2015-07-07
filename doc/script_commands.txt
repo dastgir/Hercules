@@ -4109,6 +4109,13 @@ chat window.
 
 ---------------------------------------
 
+*showscript "<message>"{,<GID>};
+
+Makes attached player or GID says a message like shouting a skill name, the message
+will be seen to everyone around but not in chat window.
+
+---------------------------------------
+
 *warp "<map name>",<x>,<y>;
 
 This command will take the invoking character to the specified map, and if 
@@ -4511,16 +4518,19 @@ the look value).
 
 Here are the possible look types:
 
-0                   - Base sprite
-1 - VAR_HEAD        - Hairstyle
-2 - VAR_WEAPON      - Weapon
-3 - VAR_HEAD_TOP    - Head top
-4 - VAR_HEAD_MID    - Head mid
-5 - VAR_HEAD_BOTTOM - Head bottom
-6 - VAR_HEADPALETTE - Hair color
-7 - VAR_BODYPALETTE - Clothes color
-8 - VAR_SHIELD      - Shield
-9 - VAR_SHOES       - Shoes
+  0 - LOOK_BASE           Base sprite
+  1 - LOOK_HAIR           Hairstyle
+  2 - LOOK_WEAPON         Weapon
+  3 - LOOK_HEAD_BOTTOM    Head bottom
+  4 - LOOK_HEAD_TOP       Head top
+  5 - LOOK_HEAD_MID       Head mid
+  6 - LOOK_HAIR_COLOR     Hair color
+  7 - LOOK_CLOTHES_COLOR  Clothes color
+  8 - LOOK_SHIELD         Shield
+  9 - LOOK_SHOES          Shoes
+ 10 - LOOK_BODY           Body(N/A)
+ 11 - LOOK_FLOOR          FLOOR(N/A)
+ 12 - LOOK_ROBE           Robe
 
 Whatever 'shoes' means is anyone's guess, ask Gravity - the client does 
 nothing with this value. It still wants it from the server though, so it 
@@ -7218,7 +7228,7 @@ determines the placement of the illustration and takes following values:
 	3 - middle of screen in a movable window with an empty title bar 
 	4 - middle of screen without the window header, but still movable 
 
-The picture is read from data\texture\???????\illust, from both the 
+The picture is read from data\texture\유저인터페이스\illust, from both the 
 GRF archive and data folder, and is required to be a bitmap. The file 
 extension .bmp can be omitted. Magenta color (#ff00ff) is considered 
 transparent. There is no limit placed on the size of the illustrations 
@@ -7809,7 +7819,7 @@ mes axtoi("11");           // Displays 17 (1 = 1, 10 = 16)
 
 ---------------------------------------
 
-*compare(<string>,<substring>)
+*compare("<string>","<substring>")
 
 This command returns 1 or 0 when the substring is in the main string (1) 
 or not (0). This command is not case sensitive.
@@ -7822,7 +7832,26 @@ Examples:
 //dothat; will not be executed ('Blood butterfly' does not contain 'Bloody').
 	if (compare("Blood Butterfly","Bloody"))
 		dothat;
+		
+---------------------------------------
 
+*strcmp("<string>","<string>")
+
+This command compares two strings and is similar to strcmp in C.
+
+Return Values:
+	>0  : String 1 > String 2
+	0  : Strings are equal
+	<0 : String 1 < String 2
+
+Examples:
+	.@a = strcmp("abcdef","ABCDEF");
+	if (.@a > 0){
+		mes ".@a is greater than 0.";		//Output is this.
+	}else{
+		mes ".@a is less or equal to 0";
+	}
+	
 ---------------------------------------
 
 *getstrlen("<string>")

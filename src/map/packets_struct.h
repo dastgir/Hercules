@@ -1,13 +1,13 @@
 // Copyright (c) Hercules Dev Team, licensed under GNU GPL.
 // See the LICENSE file
 
-/* Hercules Renewal: Phase Two http://hercules.ws/board/topic/383-hercules-renewal-phase-two/ */
+/* Hercules Renewal: Phase Two http://herc.ws/board/topic/383-hercules-renewal-phase-two/ */
 
 #ifndef MAP_PACKETS_STRUCT_H
 #define MAP_PACKETS_STRUCT_H
 
-#include "../common/cbasetypes.h"
-#include "../common/mmo.h"
+#include "common/cbasetypes.h"
+#include "common/mmo.h"
 
 /**
  *
@@ -24,8 +24,10 @@ enum packet_headers {
 	additemType = 0x29a,
 #elif PACKETVER < 20120925
 	additemType = 0x2d4,
-#else
+#elseif PACKETVER < 20150000
 	additemType = 0x990,
+#else
+	additemType = 0xa0c,
 #endif
 #if PACKETVER < 4
 	idle_unitType = 0x78,
@@ -134,6 +136,8 @@ enum packet_headers {
 #else
 	inventorylistnormalType = 0xa3,
 #endif
+#if PACKETVER >= 20150000
+	inventorylistequipType = 0xa0d,
 #if PACKETVER >= 20120925
 	inventorylistequipType = 0x992,
 #elif PACKETVER >= 20080102
@@ -153,6 +157,8 @@ enum packet_headers {
 	storagelistnormalType = 0xa5,
 #endif
 #if PACKETVER >= 20120925
+	storagelistequipType = 0xa10,
+#elif PACKETVER >= 20120925
 	storagelistequipType = 0x996,
 #elif PACKETVER >= 20080102
 	storagelistequipType = 0x2d1,
@@ -170,7 +176,9 @@ enum packet_headers {
 #else
 	cartlistnormalType = 0x123,
 #endif
-#if PACKETVER >= 20120925
+#if PACKETVER >= 20150000
+	cartlistequipType = 0xa0f,
+#elif PACKETVER >= 20120925
 	cartlistequipType = 0x994,
 #elif PACKETVER >= 20080102
 	cartlistequipType = 0x2d2,
@@ -256,6 +264,12 @@ struct NORMALITEM_INFO {
 #endif
 } __attribute__((packed));
 
+sturct RndOptions {
+	short index;
+	short value;
+	unsigned char param;
+};
+
 struct EQUIPITEM_INFO {
 	short index;
 	unsigned short ITID;
@@ -291,6 +305,10 @@ struct EQUIPITEM_INFO {
 		unsigned char PlaceETCTab : 1;
 		unsigned char SpareBits : 5;
 	} Flag;
+#endif
+#if PACKETVER >= 20150000	//Exact Date not known
+	unsigned char option_count;
+	struct RndOptions option_data[5];
 #endif
 } __attribute__((packed));
 
@@ -344,6 +362,10 @@ struct packet_additem {
 #if PACKETVER >= 20071002
 	unsigned short bindOnEquipType;
 #endif
+#if PACKETVER >= 20150000	//Exact Date not known
+	unsigned char option_count;
+	struct RndOptions option_data[5];
+#endif
 } __attribute__((packed));
 
 struct packet_dropflooritem {
@@ -360,8 +382,8 @@ struct packet_dropflooritem {
 	unsigned char subY;
 	short count;
 } __attribute__((packed));
-#if PACKETVER < 20091103
 struct packet_idle_unit2 {
+#if PACKETVER < 20091103
 	short PacketType;
 #if PACKETVER >= 20071106
 	unsigned char objecttype;
@@ -392,8 +414,13 @@ struct packet_idle_unit2 {
 	unsigned char ySize;
 	unsigned char state;
 	short clevel;
+#else // ! PACKETVER < 20091103
+	char UNUSED;
+#endif // PACKETVER < 20091103
 } __attribute__((packed));
+
 struct packet_spawn_unit2 {
+#if PACKETVER < 20091103
 	short PacketType;
 #if PACKETVER >= 20071106
 	unsigned char objecttype;
@@ -418,8 +445,11 @@ struct packet_spawn_unit2 {
 	unsigned char PosDir[3];
 	unsigned char xSize;
 	unsigned char ySize;
+#else // ! PACKETVER < 20091103
+	char UNUSED;
+#endif // PACKETVER < 20091103
 } __attribute__((packed));
-#endif
+
 struct packet_spawn_unit {
 	short PacketType;
 #if PACKETVER >= 20091103

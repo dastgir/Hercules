@@ -6,15 +6,14 @@
 
 #include "loginlog.h"
 
-#include <string.h>
-#include <stdlib.h> // exit
+#include "common/cbasetypes.h"
+#include "common/mmo.h"
+#include "common/nullpo.h"
+#include "common/socket.h"
+#include "common/sql.h"
+#include "common/strlib.h"
 
-#include "../common/cbasetypes.h"
-#include "../common/mmo.h"
-#include "../common/nullpo.h"
-#include "../common/socket.h"
-#include "../common/sql.h"
-#include "../common/strlib.h"
+#include <stdlib.h> // exit
 
 // global sql settings (in ipban_sql.c)
 static char   global_db_hostname[32] = "127.0.0.1";
@@ -62,6 +61,7 @@ unsigned long loginlog_failedattempts(uint32 ip, unsigned int minutes)
 /*=============================================
  * Records an event in the login log
  *---------------------------------------------*/
+// TODO: add an enum of rcode values
 void login_log(uint32 ip, const char* username, int rcode, const char* message)
 {
 	char esc_username[NAME_LENGTH*2+1];

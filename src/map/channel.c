@@ -5,27 +5,27 @@
 
 #include "channel.h"
 
+#include "map/atcommand.h"
+#include "map/guild.h"
+#include "map/instance.h"
+#include "map/irc-bot.h"
+#include "map/map.h"
+#include "map/pc.h"
+#include "common/cbasetypes.h"
+#include "common/conf.h"
+#include "common/db.h"
+#include "common/malloc.h"
+#include "common/nullpo.h"
+#include "common/random.h"
+#include "common/showmsg.h"
+#include "common/socket.h"
+#include "common/strlib.h"
+#include "common/timer.h"
+#include "common/utils.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "atcommand.h"
-#include "guild.h"
-#include "instance.h"
-#include "irc-bot.h"
-#include "map.h"
-#include "pc.h"
-#include "../common/cbasetypes.h"
-#include "../common/conf.h"
-#include "../common/db.h"
-#include "../common/malloc.h"
-#include "../common/nullpo.h"
-#include "../common/random.h"
-#include "../common/showmsg.h"
-#include "../common/socket.h"
-#include "../common/strlib.h"
-#include "../common/timer.h"
-#include "../common/utils.h"
 
 struct channel_interface channel_s;
 
@@ -258,7 +258,7 @@ void channel_send(struct channel_data *chan, struct map_session_data *sd, const 
 	if (sd && chan->msg_delay != 0
 	 && DIFF_TICK(sd->hchsysch_tick + chan->msg_delay*1000, timer->gettick()) > 0
 	 && !pc_has_permission(sd, PC_PERM_HCHSYS_ADMIN)) {
-		clif->colormes(sd->fd,COLOR_RED,msg_sd(sd,1455));
+		clif->messagecolor_self(sd->fd, COLOR_RED, msg_sd(sd,1455));
 		return;
 	} else if (sd) {
 		snprintf(message, 150, "[ #%s ] %s : %s",chan->name,sd->status.name, msg);
@@ -352,7 +352,7 @@ enum channel_operation_status channel_join(struct channel_data *chan, struct map
 		} else {
 			sprintf(output, msg_sd(sd,1403), chan->name); // You're now in the '%s' channel
 		}
-		clif->colormes(sd->fd, COLOR_DEFAULT, output);
+		clif->messagecolor_self(sd->fd, COLOR_DEFAULT, output);
 	}
 
 	if (chan->type == HCS_TYPE_ALLY) {
@@ -693,7 +693,6 @@ void read_channels_config(void)
 				safestrncpy(channel->config->colors_name[i], config_setting_name(color), HCS_NAME_LENGTH);
 
 				channel->config->colors[i] = (unsigned int)strtoul(libconfig->setting_get_string_elem(colors,i),NULL,0);
-				channel->config->colors[i] = (channel->config->colors[i] & 0x0000FF) << 16 | (channel->config->colors[i] & 0x00FF00) | (channel->config->colors[i] & 0xFF0000) >> 16;//RGB to BGR
 			}
 			channel->config->colors_count = color_count;
 		}

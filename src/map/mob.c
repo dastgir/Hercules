@@ -4,48 +4,48 @@
 
 #define HERCULES_CORE
 
-#include "../config/core.h" // AUTOLOOT_DISTANCE, DBPATH, DEFTYPE_MAX, DEFTYPE_MIN, RENEWAL_DROP, RENEWAL_EXP
+#include "config/core.h" // AUTOLOOT_DISTANCE, DBPATH, DEFTYPE_MAX, DEFTYPE_MIN, RENEWAL_DROP, RENEWAL_EXP
 #include "mob.h"
+
+#include "map/atcommand.h"
+#include "map/battle.h"
+#include "map/clif.h"
+#include "map/date.h"
+#include "map/elemental.h"
+#include "map/guild.h"
+#include "map/homunculus.h"
+#include "map/intif.h"
+#include "map/itemdb.h"
+#include "map/log.h"
+#include "map/map.h"
+#include "map/mercenary.h"
+#include "map/npc.h"
+#include "map/party.h"
+#include "map/path.h"
+#include "map/pc.h"
+#include "map/pet.h"
+#include "map/quest.h"
+#include "map/script.h"
+#include "map/skill.h"
+#include "map/status.h"
+#include "common/HPM.h"
+#include "common/cbasetypes.h"
+#include "common/db.h"
+#include "common/ers.h"
+#include "common/malloc.h"
+#include "common/nullpo.h"
+#include "common/random.h"
+#include "common/showmsg.h"
+#include "common/socket.h"
+#include "common/strlib.h"
+#include "common/timer.h"
+#include "common/utils.h"
 
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "atcommand.h"
-#include "battle.h"
-#include "clif.h"
-#include "date.h"
-#include "elemental.h"
-#include "guild.h"
-#include "homunculus.h"
-#include "intif.h"
-#include "itemdb.h"
-#include "log.h"
-#include "map.h"
-#include "mercenary.h"
-#include "npc.h"
-#include "party.h"
-#include "path.h"
-#include "pc.h"
-#include "pet.h"
-#include "quest.h"
-#include "script.h"
-#include "skill.h"
-#include "status.h"
-#include "../common/HPM.h"
-#include "../common/cbasetypes.h"
-#include "../common/db.h"
-#include "../common/ers.h"
-#include "../common/malloc.h"
-#include "../common/nullpo.h"
-#include "../common/random.h"
-#include "../common/showmsg.h"
-#include "../common/socket.h"
-#include "../common/strlib.h"
-#include "../common/timer.h"
-#include "../common/utils.h"
 
 struct mob_interface mob_s;
 
@@ -378,14 +378,14 @@ bool mob_ksprotected(struct block_list *src, struct block_list *target) {
 			break; // No KS Protected
 
 		if( sd->bl.id == sce->val1 || // Same Owner
-			(sce->val2 == 2 && sd->status.party_id && sd->status.party_id == sce->val3) || // Party KS allowed
-			(sce->val2 == 3 && sd->status.guild_id && sd->status.guild_id == sce->val4) ) // Guild KS allowed
+			(sce->val2 == KSPROTECT_PARTY && sd->status.party_id && sd->status.party_id == sce->val3) || // Party KS allowed
+			(sce->val2 == KSPROTECT_GUILD && sd->status.guild_id && sd->status.guild_id == sce->val4) ) // Guild KS allowed
 			break;
 
 		if( t_sd && (
-			(sce->val2 == 1 && sce->val1 != t_sd->bl.id) ||
-			(sce->val2 == 2 && sce->val3 && sce->val3 != t_sd->status.party_id) ||
-			(sce->val2 == 3 && sce->val4 && sce->val4 != t_sd->status.guild_id)) )
+			(sce->val2 == KSPROTECT_SELF && sce->val1 != t_sd->bl.id) ||
+			(sce->val2 == KSPROTECT_PARTY && sce->val3 && sce->val3 != t_sd->status.party_id) ||
+			(sce->val2 == KSPROTECT_GUILD && sce->val4 && sce->val4 != t_sd->status.guild_id)) )
 			break;
 
 		if( (pl_sd = map->id2sd(sce->val1)) == NULL || pl_sd->bl.m != md->bl.m )
@@ -1298,7 +1298,7 @@ int mob_unlocktarget(struct mob_data *md, int64 tick) {
 		break;
 	default:
 		mob_stop_attack(md);
-		mob_stop_walking(md,1); //Stop chasing.
+		mob_stop_walking(md, STOPWALKING_FLAG_FIXPOS); //Stop chasing.
 		md->state.skillstate = MSS_IDLE;
 		if(battle_config.mob_ai&0x8) //Walk instantly after dropping target
 			md->next_walktime = tick+rnd()%1000;
@@ -1975,7 +1975,7 @@ void mob_log_damage(struct mob_data *md, struct block_list *src, int damage)
 		case BL_MOB:
 		{
 			struct mob_data* md2 = (TBL_MOB*)src;
-			if( md2->special_state.ai && md2->master_id ) {
+			if (md2->special_state.ai != AI_NONE && md2->master_id) {
 				struct map_session_data* msd = map->id2sd(md2->master_id);
 				if( msd )
 					char_id = msd->status.char_id;
@@ -2170,7 +2170,7 @@ int mob_dead(struct mob_data *md, struct block_list *src, int type) {
 
 	if( !(type&2) //No exp
 	 && (!map->list[m].flag.pvp || battle_config.pvp_exp) //Pvp no exp rule [MouseJstr]
-	 && (!md->master_id || !md->special_state.ai) //Only player-summoned mobs do not give exp. [Skotlex]
+	 && (!md->master_id || md->special_state.ai == AI_NONE) //Only player-summoned mobs do not give exp. [Skotlex]
 	 && (!map->list[m].flag.nobaseexp || !map->list[m].flag.nojobexp) //Gives Exp
 	) { //Experience calculation.
 		int bonus = 100; //Bonus on top of your share (common to all attackers).
@@ -2298,9 +2298,9 @@ int mob_dead(struct mob_data *md, struct block_list *src, int type) {
 	} //End EXP giving.
 
 	if( !(type&1) && !map->list[m].flag.nomobloot && !md->state.rebirth && (
-		!md->special_state.ai || //Non special mob
+		md->special_state.ai == AI_NONE || //Non special mob
 		battle_config.alchemist_summon_reward == 2 || //All summoned give drops
-		(md->special_state.ai==2 && battle_config.alchemist_summon_reward == 1) //Marine Sphere Drops items.
+		(md->special_state.ai == AI_SPHERE && battle_config.alchemist_summon_reward == 1) //Marine Sphere Drops items.
 		) )
 	{ // Item Drop
 		struct item_drop_list *dlist = ers_alloc(item_drop_list_ers, struct item_drop_list);
@@ -2473,7 +2473,7 @@ int mob_dead(struct mob_data *md, struct block_list *src, int type) {
 		timer->add(tick + (!battle_config.delay_battle_damage?500:0), mob->delay_item_drop, 0, (intptr_t)dlist);
 	}
 
-	if(mvp_sd && md->db->mexp > 0 && !md->special_state.ai) {
+	if(mvp_sd && md->db->mexp > 0 && md->special_state.ai == AI_NONE) {
 		int log_mvp[2] = {0};
 		unsigned int mexp;
 		double exp;
@@ -2746,7 +2746,7 @@ int mob_class_change (struct mob_data *md, int class_)
 	if( mob_is_treasure(md) )
 		return 0; //Treasure Boxes
 
-	if( md->special_state.ai > 1 )
+	if( md->special_state.ai > AI_ATTACK )
 		return 0; //Marine Spheres and Floras.
 
 	if( mob->is_clone(md->class_) )
@@ -2764,7 +2764,7 @@ int mob_class_change (struct mob_data *md, int class_)
 		memcpy(md->name,md->db->jname,NAME_LENGTH);
 
 	mob_stop_attack(md);
-	mob_stop_walking(md, 0);
+	mob_stop_walking(md, STOPWALKING_FLAG_NONE);
 	unit->skillcastcancel(&md->bl, 0);
 	status->set_viewdata(&md->bl, class_);
 	clif->class_change(&md->bl, md->vd->class_, 1);
@@ -3016,7 +3016,7 @@ struct block_list *mob_getfriendhprate(struct mob_data *md,int min_rate,int max_
 
 	nullpo_retr(NULL, md);
 
-	if (md->special_state.ai) //Summoned creatures. [Skotlex]
+	if (md->special_state.ai != AI_NONE) //Summoned creatures. [Skotlex]
 		type = BL_PC;
 
 	map->foreachinrange(mob->getfriendhprate_sub, &md->bl, 8, type,md,min_rate,max_rate,&fr);
@@ -3302,7 +3302,7 @@ int mobskill_event(struct mob_data *md, struct block_list *src, int64 tick, int 
 	if(md->bl.prev == NULL || md->status.hp <= 0)
 		return 0;
 
-	if( md->special_state.ai == 2 ) {//LOne WOlf explained that ANYONE can trigger the marine countdown skill. [Skotlex]
+	if (md->special_state.ai == AI_SPHERE) {//LOne WOlf explained that ANYONE can trigger the marine countdown skill. [Skotlex]
 		md->state.alchemist = 1;
 		return mob->skill_use(md, timer->gettick(), MSC_ALCHEMIST);
 	}

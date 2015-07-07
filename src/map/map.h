@@ -5,17 +5,18 @@
 #ifndef MAP_MAP_H
 #define MAP_MAP_H
 
-#include "../config/core.h"
+#include "config/core.h"
 
+#include "map/atcommand.h"
+#include "common/cbasetypes.h"
+#include "common/core.h" // CORE_ST_LAST
+#include "common/db.h"
+#include "common/mapindex.h"
+#include "common/mmo.h"
+#include "common/sql.h"
+
+#include <stdio.h>
 #include <stdarg.h>
-
-#include "atcommand.h"
-#include "../common/cbasetypes.h"
-#include "../common/core.h" // CORE_ST_LAST
-#include "../common/db.h"
-#include "../common/mapindex.h"
-#include "../common/mmo.h"
-#include "../common/sql.h"
 
 struct mob_data;
 struct npc_data;
@@ -64,16 +65,6 @@ enum MOBID {
 	MOBID_SILVERSNIPER = 2042,
 	MOBID_MAGICDECOY_WIND = 2046,
 };
-
-// The following system marks a different job ID system used by the map server,
-// which makes a lot more sense than the normal one. [Skotlex]
-// These marks the "level" of the job.
-#define JOBL_2_1 0x100 //256
-#define JOBL_2_2 0x200 //512
-#define JOBL_2 0x300
-#define JOBL_UPPER 0x1000 //4096
-#define JOBL_BABY 0x2000  //8192
-#define JOBL_THIRD 0x4000 //16384
 
 // For filtering and quick checking.
 #define MAPID_BASEMASK 0x00ff
@@ -266,10 +257,15 @@ enum {
 	RC_DEMIHUMAN,
 	RC_ANGEL,
 	RC_DRAGON,
+	RC_PLAYER,
 	RC_BOSS,
 	RC_NONBOSS,
+	RC_MAX,
 	RC_NONDEMIHUMAN,
-	RC_MAX
+	RC_NONPLAYER,
+	RC_DEMIPLAYER,
+	RC_NONDEMIPLAYER,
+	RC_ALL = 0xFF
 };
 
 enum {
@@ -280,6 +276,8 @@ enum {
 	RC2_GOLEM,
 	RC2_GUARDIAN,
 	RC2_NINJA,
+	RC2_SCARABA,
+	RC2_TURTLE,
 	RC2_MAX
 };
 
@@ -294,7 +292,8 @@ enum elements {
 	ELE_DARK,
 	ELE_GHOST,
 	ELE_UNDEAD,
-	ELE_MAX
+	ELE_MAX,
+	ELE_ALL = 0xFF
 };
 
 /**

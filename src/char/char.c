@@ -4,50 +4,49 @@
 
 #define HERCULES_CORE
 
-#include "../config/core.h" // CONSOLE_INPUT
+#include "config/core.h" // CONSOLE_INPUT
 #include "char.h"
+
+#include "char/HPMchar.h"
+#include "char/geoip.h"
+#include "char/int_auction.h"
+#include "char/int_elemental.h"
+#include "char/int_guild.h"
+#include "char/int_homun.h"
+#include "char/int_mail.h"
+#include "char/int_mercenary.h"
+#include "char/int_party.h"
+#include "char/int_pet.h"
+#include "char/int_quest.h"
+#include "char/int_storage.h"
+#include "char/inter.h"
+#include "char/loginif.h"
+#include "char/mapif.h"
+#include "char/pincode.h"
+
+#include "common/HPM.h"
+#include "common/cbasetypes.h"
+#include "common/console.h"
+#include "common/core.h"
+#include "common/db.h"
+#include "common/malloc.h"
+#include "common/mapindex.h"
+#include "common/mmo.h"
+#include "common/nullpo.h"
+#include "common/showmsg.h"
+#include "common/socket.h"
+#include "common/strlib.h"
+#include "common/sql.h"
+#include "common/timer.h"
+#include "common/utils.h"
 
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sys/types.h>
-#include <time.h>
-
-#include "HPMchar.h"
-#include "geoip.h"
-#include "int_auction.h"
-#include "int_elemental.h"
-#include "int_guild.h"
-#include "int_homun.h"
-#include "int_mail.h"
-#include "int_mercenary.h"
-#include "int_party.h"
-#include "int_pet.h"
-#include "int_quest.h"
-#include "int_storage.h"
-#include "inter.h"
-#include "loginif.h"
-#include "mapif.h"
-#include "pincode.h"
-#include "../common/HPM.h"
-#include "../common/cbasetypes.h"
-#include "../common/console.h"
-#include "../common/core.h"
-#include "../common/db.h"
-#include "../common/malloc.h"
-#include "../common/mapindex.h"
-#include "../common/mmo.h"
-#include "../common/nullpo.h"
-#include "../common/showmsg.h"
-#include "../common/socket.h"
-#include "../common/strlib.h"
-#include "../common/timer.h"
-#include "../common/utils.h"
-
 #ifndef WIN32
-	#include <unistd.h>
+#	include <unistd.h>
 #endif
 
 // private declarations
@@ -148,11 +147,6 @@ struct fame_list smith_fame_list[MAX_FAME_LIST];
 struct fame_list chemist_fame_list[MAX_FAME_LIST];
 struct fame_list taekwon_fame_list[MAX_FAME_LIST];
 
-// check for exit signal
-// 0 is saving complete
-// other is char_id
-unsigned int save_flag = 0;
-
 // Initial position (it's possible to set it in conf file)
 struct point start_point = { 0, 53, 111 };
 
@@ -240,7 +234,7 @@ void char_set_char_online(int map_id, int char_id, int account_id)
 	{
 		ShowNotice("chr->set_char_online: Character %d:%d marked in map server %d, but map server %d claims to have (%d:%d) online!\n",
 			character->account_id, character->char_id, character->server, map_id, account_id, char_id);
-		mapif->disconnectplayer(chr->server[character->server].fd, character->account_id, character->char_id, 2);
+		mapif->disconnectplayer(chr->server[character->server].fd, character->account_id, character->char_id, 2); // 2: Already connected to server
 	}
 
 	//Update state data
@@ -345,7 +339,7 @@ static int char_db_kickoffline(DBKey key, DBData *data, va_list ap)
 
 	//Kick out any connected characters, and set them offline as appropriate.
 	if (character->server > -1 && character->server < MAX_MAP_SERVERS)
-		mapif->disconnectplayer(chr->server[character->server].fd, character->account_id, character->char_id, 1);
+		mapif->disconnectplayer(chr->server[character->server].fd, character->account_id, character->char_id, 1); // 1: Server closed
 	else if (character->waiting_disconnect == INVALID_TIMER)
 		chr->set_char_offline(character->char_id, character->account_id);
 	else
@@ -1998,7 +1992,8 @@ int char_mmo_char_tobuf(uint8* buffer, struct mmo_charstatus* p) {
 #endif
 
 	//When the weapon is sent and your option is riding, the client crashes on login!?
-	WBUFW(buf,56) = (p->option&(0x20|0x80000|0x100000|0x200000|0x400000|0x800000|0x1000000|0x2000000|0x4000000|0x8000000)) ? 0 : p->weapon;
+	// FIXME[Haru]: is OPTION_HANBOK intended to be part of this list? And if it is, should the list also include other OPTION_ costumes?
+	WBUFL(buf,56) = p->option&(OPTION_RIDING|OPTION_DRAGON|OPTION_WUG|OPTION_WUGRIDER|OPTION_MADOGEAR|OPTION_HANBOK) ? 0 : p->weapon;
 
 	WBUFW(buf,58) = p->base_level;
 	WBUFW(buf,60) = min(p->skill_point, INT16_MAX);
@@ -2247,7 +2242,7 @@ static void char_auth_ok(int fd, struct char_session_data *sd)
 		// check if character is not online already. [Skotlex]
 		if (character->server > -1) {
 			//Character already online. KICK KICK KICK
-			mapif->disconnectplayer(chr->server[character->server].fd, character->account_id, character->char_id, 2);
+			mapif->disconnectplayer(chr->server[character->server].fd, character->account_id, character->char_id, 2); // 2: Already connected to server
 			if (character->waiting_disconnect == INVALID_TIMER)
 				character->waiting_disconnect = timer->add(timer->gettick()+20000, chr->waiting_disconnect, character->account_id, 0);
 			character->pincode_enable = -1;
@@ -2534,7 +2529,7 @@ void char_parse_fromlogin_kick(int fd)
 	{// account is already marked as online!
 		if( character->server > -1 ) {
 			//Kick it from the map server it is on.
-			mapif->disconnectplayer(chr->server[character->server].fd, character->account_id, character->char_id, 2);
+			mapif->disconnectplayer(chr->server[character->server].fd, character->account_id, character->char_id, 2); // 2: Already connected to server
 			if (character->waiting_disconnect == INVALID_TIMER)
 				character->waiting_disconnect = timer->add(timer->gettick()+AUTH_TIMEOUT, chr->waiting_disconnect, character->account_id, 0);
 		}
@@ -3181,7 +3176,7 @@ void char_parse_frommap_set_users(int fd, int id)
 		if (character->server > -1 && character->server != id) {
 			ShowNotice("Set map user: Character (%d:%d) marked on map server %d, but map server %d claims to have (%d:%d) online!\n",
 				character->account_id, character->char_id, character->server, id, aid, cid);
-			mapif->disconnectplayer(chr->server[character->server].fd, character->account_id, character->char_id, 2);
+			mapif->disconnectplayer(chr->server[character->server].fd, character->account_id, character->char_id, 2); // 2: Already connected to server
 		}
 		character->server = id;
 		character->char_id = cid;
@@ -3547,36 +3542,37 @@ void char_parse_frommap_change_account(int fd)
 #endif // 0
 		} else {
 			switch (type) {
-				case 1: // block
-					loginif->block_account(account_id, 5);
+			case CHAR_ASK_NAME_BLOCK:
+				loginif->block_account(account_id, 5);
 				break;
-				case 2: // ban
-					loginif->ban_account(account_id, year, month, day, hour, minute, second);
+			case CHAR_ASK_NAME_BAN:
+				loginif->ban_account(account_id, year, month, day, hour, minute, second);
 				break;
-				case 3: // unblock
-					loginif->block_account(account_id, 0);
+			case CHAR_ASK_NAME_UNBLOCK:
+				loginif->block_account(account_id, 0);
 				break;
-				case 4: // unban
-					loginif->unban_account(account_id);
+			case CHAR_ASK_NAME_UNBAN:
+				loginif->unban_account(account_id);
 				break;
-				case 5: // changesex
-					loginif->changesex(account_id);
+			case CHAR_ASK_NAME_CHANGESEX:
+				loginif->changesex(account_id);
 				break;
-				case 6: // char ban - handled by char server, so no redirection
-					chr->ban(account_id, char_id, &unban_time, year, month, day, hour, minute, second);
+			case CHAR_ASK_NAME_CHARBAN:
+				/* handled by char server, so no redirection */
+				chr->ban(account_id, char_id, &unban_time, year, month, day, hour, minute, second);
 				break;
-				case 7: // char unban - handled by char server, so no redirection
-					chr->unban(char_id, &result);
+			case CHAR_ASK_NAME_CHARUNBAN:
+				chr->unban(char_id, &result);
 				break;
-				case 8: // changecharsex - handled by char server, so no redirection
-					result = chr->changecharsex(char_id, sex);
+			case CHAR_ASK_NAME_CHANGECHARSEX:
+				result = chr->changecharsex(char_id, sex);
 				break;
 			}
 		}
 	}
 
 	// send answer if a player ask, not if the server ask
-	if (acc != -1 && type != 5 && type != 8) { // Don't send answer for changesex
+	if (acc != -1 && type != CHAR_ASK_NAME_CHANGESEX && type != CHAR_ASK_NAME_CHANGECHARSEX) { // Don't send answer for changesex
 		chr->ask_name_ack(fd, acc, name, type, result);
 	}
 }
@@ -3833,7 +3829,7 @@ void char_parse_frommap_request_stats_report(int fd)
 	opt.silent = 1;
 	opt.setTimeo = 1;
 
-	if( (sfd = make_connection(host2ip("stats.hercules.ws"),(uint16)25427,&opt) ) == -1 ) {
+	if( (sfd = make_connection(host2ip("stats.herc.ws"),(uint16)25427,&opt) ) == -1 ) {
 		RFIFOSKIP(fd, RFIFOW(fd,2) );/* skip this packet */
 		RFIFOFLUSH(fd);
 		return;/* connection not possible, we drop the report */
@@ -4264,21 +4260,21 @@ static void char_delete2_req(int fd, struct char_session_data* sd)
 	ARR_FIND( 0, MAX_CHARS, i, sd->found_char[i] == char_id );
 	if( i == MAX_CHARS )
 	{// character not found
-		chr->delete2_ack(fd, char_id, 3, 0);
+		chr->delete2_ack(fd, char_id, 3, 0); // 3: A database error occurred
 		return;
 	}
 
 	if( SQL_SUCCESS != SQL->Query(inter->sql_handle, "SELECT `delete_date` FROM `%s` WHERE `char_id`='%d'", char_db, char_id) || SQL_SUCCESS != SQL->NextRow(inter->sql_handle) )
 	{
 		Sql_ShowDebug(inter->sql_handle);
-		chr->delete2_ack(fd, char_id, 3, 0);
+		chr->delete2_ack(fd, char_id, 3, 0); // 3: A database error occurred
 		return;
 	}
 
 	SQL->GetData(inter->sql_handle, 0, &data, NULL); delete_date = strtoul(data, NULL, 10);
 
 	if( delete_date ) {// character already queued for deletion
-		chr->delete2_ack(fd, char_id, 0, 0);
+		chr->delete2_ack(fd, char_id, 0, 0); // 0: An unknown error occurred
 		return;
 	}
 
@@ -4291,7 +4287,7 @@ static void char_delete2_req(int fd, struct char_session_data* sd)
 		 || SQL_SUCCESS != SQL->NextRow(inter->sql_handle)
 		) {
 			Sql_ShowDebug(inter->sql_handle);
-			chr->delete2_ack(fd, char_id, 3, 0);
+			chr->delete2_ack(fd, char_id, 3, 0); // 3: A database error occurred
 			return;
 		}
 		SQL->GetData(inter->sql_handle, 0, &data, NULL); party_id = atoi(data);
@@ -4299,13 +4295,13 @@ static void char_delete2_req(int fd, struct char_session_data* sd)
 
 		if( guild_id )
 		{
-			chr->delete2_ack(fd, char_id, 4, 0);
+			chr->delete2_ack(fd, char_id, 4, 0); // 4: To delete a character you must withdraw from the guild
 			return;
 		}
 
 		if( party_id )
 		{
-			chr->delete2_ack(fd, char_id, 5, 0);
+			chr->delete2_ack(fd, char_id, 5, 0); // 5: To delete a character you must withdraw from the party
 			return;
 		}
 	}
@@ -4316,11 +4312,11 @@ static void char_delete2_req(int fd, struct char_session_data* sd)
 	if( SQL_SUCCESS != SQL->Query(inter->sql_handle, "UPDATE `%s` SET `delete_date`='%lu' WHERE `char_id`='%d'", char_db, (unsigned long)delete_date, char_id) )
 	{
 		Sql_ShowDebug(inter->sql_handle);
-		chr->delete2_ack(fd, char_id, 3, 0);
+		chr->delete2_ack(fd, char_id, 3, 0); // 3: A database error occurred
 		return;
 	}
 
-	chr->delete2_ack(fd, char_id, 1, delete_date);
+	chr->delete2_ack(fd, char_id, 1, delete_date); // 1: success
 }
 
 static void char_delete2_accept(int fd, struct char_session_data* sd)
@@ -4349,14 +4345,14 @@ static void char_delete2_accept(int fd, struct char_session_data* sd)
 	ARR_FIND( 0, MAX_CHARS, i, sd->found_char[i] == char_id );
 	if( i == MAX_CHARS )
 	{// character not found
-		chr->delete2_accept_ack(fd, char_id, 3);
+		chr->delete2_accept_ack(fd, char_id, 3); // 3: A database error occurred
 		return;
 	}
 
 	if( SQL_SUCCESS != SQL->Query(inter->sql_handle, "SELECT `base_level`,`delete_date` FROM `%s` WHERE `char_id`='%d'", char_db, char_id) || SQL_SUCCESS != SQL->NextRow(inter->sql_handle) )
 	{// data error
 		Sql_ShowDebug(inter->sql_handle);
-		chr->delete2_accept_ack(fd, char_id, 3);
+		chr->delete2_accept_ack(fd, char_id, 3); // 3: A database error occurred
 		return;
 	}
 
@@ -4365,33 +4361,33 @@ static void char_delete2_accept(int fd, struct char_session_data* sd)
 
 	if( !delete_date || delete_date>time(NULL) )
 	{// not queued or delay not yet passed
-		chr->delete2_accept_ack(fd, char_id, 4);
+		chr->delete2_accept_ack(fd, char_id, 4); // 4: Deleting not yet possible time
 		return;
 	}
 
 	if( strcmp(sd->birthdate+2, birthdate) )  // +2 to cut off the century
 	{// birth date is wrong
-		chr->delete2_accept_ack(fd, char_id, 5);
+		chr->delete2_accept_ack(fd, char_id, 5); // 5: Date of birth do not match
 		return;
 	}
 
 	if( ( char_del_level > 0 && base_level >= (unsigned int)char_del_level ) || ( char_del_level < 0 && base_level <= (unsigned int)(-char_del_level) ) )
 	{// character level config restriction
-		chr->delete2_accept_ack(fd, char_id, 2);
+		chr->delete2_accept_ack(fd, char_id, 2); // 2: Due to system settings can not be deleted
 		return;
 	}
 
 	// success
 	if( chr->delete_char_sql(char_id) < 0 )
 	{
-		chr->delete2_accept_ack(fd, char_id, 3);
+		chr->delete2_accept_ack(fd, char_id, 3); // 3: A database error occurred
 		return;
 	}
 
 	// refresh character list cache
 	sd->found_char[i] = -1;
 
-	chr->delete2_accept_ack(fd, char_id, 1);
+	chr->delete2_accept_ack(fd, char_id, 1); // 1: success
 }
 
 static void char_delete2_cancel(int fd, struct char_session_data* sd)
@@ -4403,7 +4399,7 @@ static void char_delete2_cancel(int fd, struct char_session_data* sd)
 	ARR_FIND( 0, MAX_CHARS, i, sd->found_char[i] == char_id );
 	if( i == MAX_CHARS )
 	{// character not found
-		chr->delete2_cancel_ack(fd, char_id, 2);
+		chr->delete2_cancel_ack(fd, char_id, 2); // 2: A database error occurred
 		return;
 	}
 
@@ -4413,11 +4409,11 @@ static void char_delete2_cancel(int fd, struct char_session_data* sd)
 	if( SQL_SUCCESS != SQL->Query(inter->sql_handle, "UPDATE `%s` SET `delete_date`='0' WHERE `char_id`='%d'", char_db, char_id) )
 	{
 		Sql_ShowDebug(inter->sql_handle);
-		chr->delete2_cancel_ack(fd, char_id, 2);
+		chr->delete2_cancel_ack(fd, char_id, 2); // 2: A database error occurred
 		return;
 	}
 
-	chr->delete2_cancel_ack(fd, char_id, 1);
+	chr->delete2_cancel_ack(fd, char_id, 1); // 1: success
 }
 
 void char_send_account_id(int fd, int account_id)
@@ -4587,7 +4583,7 @@ void char_parse_char_select(int fd, struct char_session_data* sd, uint32 ipl)
 		//Not found?? May be forged packet.
 		Sql_ShowDebug(inter->sql_handle);
 		SQL->FreeResult(inter->sql_handle);
-		chr->auth_error(fd, 0);
+		chr->auth_error(fd, 0); // rejected from server
 		return;
 	}
 
@@ -4596,7 +4592,7 @@ void char_parse_char_select(int fd, struct char_session_data* sd, uint32 ipl)
 
 	/* client doesn't let it get to this point if you're banned, so its a forged packet */
 	if( sd->found_char[slot] == char_id && sd->unban_time[slot] > time(NULL) ) {
-		chr->auth_error(fd, 0);
+		chr->auth_error(fd, 0); // rejected from server
 		return;
 	}
 
@@ -4605,7 +4601,7 @@ void char_parse_char_select(int fd, struct char_session_data* sd, uint32 ipl)
 	if( !chr->mmo_char_fromsql(char_id, &char_dat, true) ) { /* failed? set it back offline */
 		chr->set_char_offline(char_id, sd->account_id);
 		/* failed to load something. REJECT! */
-		chr->auth_error(fd, 0);
+		chr->auth_error(fd, 0); // rejected from server
 		return;/* jump off this boat */
 	}
 
@@ -4636,14 +4632,14 @@ void char_parse_char_select(int fd, struct char_session_data* sd, uint32 ipl)
 		ARR_FIND( 0, ARRAYLENGTH(chr->server), j, chr->server[j].fd >= 0 && chr->server[j].map );
 		if (j == ARRAYLENGTH(chr->server)) {
 			ShowInfo("Connection Closed. No map servers available.\n");
-			chr->authfail_fd(fd, 1);
+			chr->authfail_fd(fd, 1); // 1 = Server closed
 			return;
 		}
 		i = chr->search_default_maps_mapserver(cd);
 		if (i < 0)
 		{
 			ShowInfo("Connection Closed. No map server available that has a major city, and unable to find map-server for '%s'.\n", mapindex_id2name(cd->last_point.map));
-			chr->authfail_fd(fd, 1);
+			chr->authfail_fd(fd, 1); // 1 = Server closed
 			return;
 		}
 	}
@@ -4655,8 +4651,7 @@ void char_parse_char_select(int fd, struct char_session_data* sd, uint32 ipl)
 		ShowError("chr->parse_char: Attempting to write to invalid session %d! Map Server #%d disconnected.\n", map_fd, i);
 		chr->server[i].fd = -1;
 		memset(&chr->server[i], 0, sizeof(struct mmo_map_server));
-		//Send server closed.
-		chr->authfail_fd(fd, 1);
+		chr->authfail_fd(fd, 1); // 1 = Server closed
 		return;
 	}
 
@@ -4714,15 +4709,18 @@ void char_creation_ok(int fd, struct mmo_charstatus *char_dat)
 void char_parse_char_create_new_char(int fd, struct char_session_data* sd)
 {
 	int result;
-	if( !char_new ) //turn character creation on/off [Kevin]
+	if( !char_new ) {
+		//turn character creation on/off [Kevin]
 		result = -2;
-	else
+	} else {
 	#if PACKETVER >= 20120307
 		result = chr->make_new_char_sql(sd, (char*)RFIFOP(fd,2), 1, 1, 1, 1, 1, 1, RFIFOB(fd,26),RFIFOW(fd,27),RFIFOW(fd,29));
 	#else
 		result = chr->make_new_char_sql(sd, (char*)RFIFOP(fd,2),RFIFOB(fd,26),RFIFOB(fd,27),RFIFOB(fd,28),RFIFOB(fd,29),RFIFOB(fd,30),RFIFOB(fd,31),RFIFOB(fd,32),RFIFOW(fd,33),RFIFOW(fd,35));
 	#endif
+	}
 
+	//'Charname already exists' (-1), 'Char creation denied' (-2) and 'You are underaged' (-3)
 	if (result < 0) {
 		chr->creation_failed(fd, result);
 	} else {
@@ -4961,9 +4959,9 @@ void char_parse_char_login_map_server(int fd)
 		strcmp(l_user, chr->userid) != 0 ||
 		strcmp(l_pass, chr->passwd) != 0 )
 	{
-		chr->login_map_server_ack(fd, 3);
+		chr->login_map_server_ack(fd, 3); // Failure
 	} else {
-		chr->login_map_server_ack(fd, 0);
+		chr->login_map_server_ack(fd, 0); // Success
 
 		chr->server[i].fd = fd;
 		chr->server[i].ip = ntohl(RFIFOL(fd,54));
@@ -5101,7 +5099,6 @@ int char_parse_char(int fd)
 				FIFOSD_CHECK(3);
 			{
 				chr->parse_char_select(fd, sd, ipl);
-
 			}
 			break;
 

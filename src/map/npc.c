@@ -4,8 +4,36 @@
 
 #define HERCULES_CORE
 
-#include "../config/core.h" // NPC_SECURE_TIMEOUT_INPUT, NPC_SECURE_TIMEOUT_MENU, NPC_SECURE_TIMEOUT_NEXT, SECURE_NPCTIMEOUT, SECURE_NPCTIMEOUT_INTERVAL
+#include "config/core.h" // NPC_SECURE_TIMEOUT_INPUT, NPC_SECURE_TIMEOUT_MENU, NPC_SECURE_TIMEOUT_NEXT, SECURE_NPCTIMEOUT, SECURE_NPCTIMEOUT_INTERVAL
 #include "npc.h"
+
+#include "map/battle.h"
+#include "map/chat.h"
+#include "map/clif.h"
+#include "map/guild.h"
+#include "map/instance.h"
+#include "map/intif.h"
+#include "map/itemdb.h"
+#include "map/log.h"
+#include "map/map.h"
+#include "map/mob.h"
+#include "map/pc.h"
+#include "map/pet.h"
+#include "map/script.h"
+#include "map/skill.h"
+#include "map/status.h"
+#include "map/unit.h"
+#include "common/HPM.h"
+#include "common/cbasetypes.h"
+#include "common/db.h"
+#include "common/ers.h"
+#include "common/malloc.h"
+#include "common/nullpo.h"
+#include "common/showmsg.h"
+#include "common/socket.h"
+#include "common/strlib.h"
+#include "common/timer.h"
+#include "common/utils.h"
 
 #include <errno.h>
 #include <math.h>
@@ -13,33 +41,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
-#include "battle.h"
-#include "chat.h"
-#include "clif.h"
-#include "instance.h"
-#include "intif.h"
-#include "itemdb.h"
-#include "log.h"
-#include "map.h"
-#include "mob.h"
-#include "pc.h"
-#include "pet.h"
-#include "script.h"
-#include "skill.h"
-#include "status.h"
-#include "unit.h"
-#include "../common/HPM.h"
-#include "../common/cbasetypes.h"
-#include "../common/db.h"
-#include "../common/ers.h"
-#include "../common/malloc.h"
-#include "../common/nullpo.h"
-#include "../common/showmsg.h"
-#include "../common/socket.h"
-#include "../common/strlib.h"
-#include "../common/timer.h"
-#include "../common/utils.h"
 
 struct npc_interface npc_s;
 
@@ -203,7 +204,7 @@ int npc_enable_sub(struct block_list *bl, va_list ap)
 			if (sd->npc_id != 0)
 				return 0;
 
-			pc_stop_walking(sd,1);
+			pc_stop_walking(sd, STOPWALKING_FLAG_FIXPOS);
 			npc->click(sd,nd);
 		}
 	}
@@ -1583,8 +1584,8 @@ bool npc_trader_open(struct map_session_data *sd, struct npc_data *nd) {
 				}
 			
 				/* nothing to display, no items available */
-				if( i == nd->u.scr.shop->items ) {
-					clif->colormes(sd->fd,COLOR_RED, msg_sd(sd,881));
+				if (i == nd->u.scr.shop->items) {
+					clif->messagecolor_self(sd->fd, COLOR_RED, msg_sd(sd,881));
 					return false;
 				}
 
@@ -2056,19 +2057,18 @@ int npc_selllist_sub(struct map_session_data* sd, int n, unsigned short* item_li
 
 		script->setarray_pc(sd, "@sold_nameid", i, (void*)(intptr_t)sd->status.inventory[idx].nameid, &key_nameid);
 		script->setarray_pc(sd, "@sold_quantity", i, (void*)(intptr_t)item_list[i*2+1], &key_amount);
-
-		if (itemdb->isequip(sd->status.inventory[idx].nameid)) {
-			// process equipment based information into the arrays
-			script->setarray_pc(sd, "@sold_refine", i, (void*)(intptr_t)sd->status.inventory[idx].refine, &key_refine);
-			script->setarray_pc(sd, "@sold_attribute", i, (void*)(intptr_t)sd->status.inventory[idx].attribute, &key_attribute);
-			script->setarray_pc(sd, "@sold_identify", i, (void*)(intptr_t)sd->status.inventory[idx].identify, &key_identify);
-
-			for (j = 0; j < MAX_SLOTS; j++) {
-				// store each of the cards from the equipment in the array
-				snprintf(card_slot, sizeof(card_slot), "@sold_card%d", j + 1);
-				script->setarray_pc(sd, card_slot, i, (void*)(intptr_t)sd->status.inventory[idx].card[j], &key_card[j]);
-			}
+		
+		// process item based information into the arrays
+		script->setarray_pc(sd, "@sold_refine", i, (void*)(intptr_t)sd->status.inventory[idx].refine, &key_refine);
+		script->setarray_pc(sd, "@sold_attribute", i, (void*)(intptr_t)sd->status.inventory[idx].attribute, &key_attribute);
+		script->setarray_pc(sd, "@sold_identify", i, (void*)(intptr_t)sd->status.inventory[idx].identify, &key_identify);
+		
+		for (j = 0; j < MAX_SLOTS; j++) {
+			// store each of the cards/special info from the item in the array
+			snprintf(card_slot, sizeof(card_slot), "@sold_card%d", j + 1);
+			script->setarray_pc(sd, card_slot, i, (void*)(intptr_t)sd->status.inventory[idx].card[j], &key_card[j]);
 		}
+		
 	}
 
 	// invoke event
@@ -2145,7 +2145,7 @@ int npc_selllist(struct map_session_data* sd, int n, unsigned short* item_list) 
 			}
 		}
 
-		pc->delitem(sd, idx, amount, 0, 6, LOG_TYPE_NPC);
+		pc->delitem(sd, idx, amount, 0, DELITEM_SOLD, LOG_TYPE_NPC);
 	}
 
 	if( z > MAX_ZENY )
@@ -3555,7 +3555,7 @@ const char* npc_parse_mob(char* w1, char* w2, char* w3, char* w4, const char* st
 		return strchr(start, '\n');
 	}
 
-	if (mobspawn.state.ai > 4 && ai != -1) {
+	if (mobspawn.state.ai >= AI_MAX && ai != -1) {
 		ShowError("npc_parse_mob: Invalid ai %d for mob ID %d in file '%s', line '%d'.\n", mobspawn.state.ai, class_, filepath, strline(buffer, start - buffer));
 		if (retval) *retval = EXIT_FAILURE;
 		return strchr(start, '\n');
@@ -3578,7 +3578,7 @@ const char* npc_parse_mob(char* w1, char* w2, char* w3, char* w4, const char* st
 		mobspawn.level = mob_lv;
 	if (size > 0 && size <= 2)
 		mobspawn.state.size = size;
-	if (ai > 0 && ai <= 4)
+	if (ai > AI_NONE && ai < AI_MAX)
 		mobspawn.state.ai = ai;
 
 	if (mobspawn.num > 1 && battle_config.mob_count_rate != 100) {

@@ -5,8 +5,8 @@
 #ifndef MAP_BATTLE_H
 #define MAP_BATTLE_H
 
-#include "map.h" //ELE_MAX
-#include "../common/cbasetypes.h"
+#include "map/map.h" //ELE_MAX
+#include "common/cbasetypes.h"
 
 /**
  * Declarations
@@ -74,6 +74,27 @@ enum e_battle_check_target { //New definitions [Skotlex]
 	BCT_NOENEMY     =   0x3d0000, ///< This must be (~BCT_ENEMY&BCT_ALL)
 
 	BCT_ALL         =   0x3f0000, ///< Sum of BCT_NOONE to BCT_SAMEGUILD
+};
+
+/**
+ * Values used by (struct Damage).type, as well as clif->damage(type) and clif->skill_damage(type)
+ *
+ * Note: some values may not apply in some contexts.
+ */
+enum battle_dmg_type {
+	BDT_NORMAL      = 0,  // Normal attack
+	//BDT_PICKUP      = 1,  // Pick up item
+	//BDT_SITDOWN     = 2,  // Sit down
+	//BDT_STANDUP     = 3,  // Stand up
+	BDT_ENDURE      = 4,  // Damage (endure)
+	BDT_SPLASH      = 5,  // Splash
+	BDT_SKILL       = 6,  // Skill
+	//BDT_REPEAT      = 7,  // (repeat damage?)
+	BDT_MULTIHIT    = 8,  // Multi-hit damage
+	BDT_MULTIENDURE = 9,  // Multi-hit damage (endure)
+	BDT_CRIT        = 10, // Critical hit
+	BDT_PDODGE      = 11, // Lucky dodge
+	//BDT_TOUCH       = 12, // (touch skill?)
 };
 
 /**

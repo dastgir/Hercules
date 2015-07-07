@@ -4,58 +4,58 @@
 
 #define HERCULES_CORE
 
-#include "../config/core.h" // AUTOLOOTITEM_SIZE, AUTOTRADE_PERSISTENCY, MAX_SUGGESTIONS, MOB_FLEE(), MOB_HIT(), RENEWAL, RENEWAL_DROP, RENEWAL_EXP
+#include "config/core.h" // AUTOLOOTITEM_SIZE, AUTOTRADE_PERSISTENCY, MAX_SUGGESTIONS, MOB_FLEE(), MOB_HIT(), RENEWAL, RENEWAL_DROP, RENEWAL_EXP
 #include "atcommand.h"
+
+#include "map/HPMmap.h"
+#include "map/battle.h"
+#include "map/channel.h"
+#include "map/chat.h"
+#include "map/chrif.h"
+#include "map/clif.h"
+#include "map/duel.h"
+#include "map/elemental.h"
+#include "map/guild.h"
+#include "map/homunculus.h"
+#include "map/intif.h"
+#include "map/itemdb.h"
+#include "map/log.h"
+#include "map/mail.h"
+#include "map/map.h"
+#include "map/mapreg.h"
+#include "map/mercenary.h"
+#include "map/mob.h"
+#include "map/npc.h"
+#include "map/party.h"
+#include "map/pc.h"
+#include "map/pc_groups.h" // groupid2name
+#include "map/pet.h"
+#include "map/quest.h"
+#include "map/script.h"
+#include "map/searchstore.h"
+#include "map/skill.h"
+#include "map/status.h"
+#include "map/storage.h"
+#include "map/trade.h"
+#include "map/unit.h"
+#include "common/cbasetypes.h"
+#include "common/conf.h"
+#include "common/core.h"
+#include "common/malloc.h"
+#include "common/mmo.h" // MAX_CARTS
+#include "common/nullpo.h"
+#include "common/random.h"
+#include "common/showmsg.h"
+#include "common/socket.h"
+#include "common/strlib.h"
+#include "common/sysinfo.h"
+#include "common/timer.h"
+#include "common/utils.h"
 
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "HPMmap.h"
-#include "battle.h"
-#include "channel.h"
-#include "chat.h"
-#include "chrif.h"
-#include "clif.h"
-#include "duel.h"
-#include "elemental.h"
-#include "guild.h"
-#include "homunculus.h"
-#include "intif.h"
-#include "itemdb.h"
-#include "log.h"
-#include "mail.h"
-#include "map.h"
-#include "mapreg.h"
-#include "mercenary.h"
-#include "mob.h"
-#include "npc.h"
-#include "party.h"
-#include "pc.h"
-#include "pc_groups.h" // groupid2name
-#include "pet.h"
-#include "quest.h"
-#include "script.h"
-#include "searchstore.h"
-#include "skill.h"
-#include "status.h"
-#include "storage.h"
-#include "trade.h"
-#include "unit.h"
-#include "../common/cbasetypes.h"
-#include "../common/conf.h"
-#include "../common/core.h"
-#include "../common/malloc.h"
-#include "../common/mmo.h" // MAX_CARTS
-#include "../common/nullpo.h"
-#include "../common/random.h"
-#include "../common/showmsg.h"
-#include "../common/socket.h"
-#include "../common/strlib.h"
-#include "../common/sysinfo.h"
-#include "../common/timer.h"
-#include "../common/utils.h"
 
 struct atcommand_interface atcommand_s;
 
@@ -209,9 +209,10 @@ ACMD(send)
 	long num;
 
 	// read message type as hex number (without the 0x)
-	if(!message || !*message ||
-	   !((sscanf(message, "len %x", &type)==1 && (len=1))
-		 || sscanf(message, "%x", &type)==1) ) {
+	if (!message || !*message
+	 || !((sscanf(message, "len %x", &type)==1 && (len=1))
+	 || sscanf(message, "%x", &type)==1)
+	) {
 		clif->message(fd, msg_fd(fd,900)); // Usage:
 		clif->message(fd, msg_fd(fd,901)); // @send len <packet hex number>
 		clif->message(fd, msg_fd(fd,902)); // @send <packet hex number> {<value>}*
@@ -663,7 +664,7 @@ ACMD(who) {
 					break;
 				}
 			}
-			clif->colormes(fd, COLOR_DEFAULT, StrBuf->Value(&buf));/** for whatever reason clif->message crashes with some patterns, see bugreport:8186 **/
+			clif->messagecolor_self(fd, COLOR_DEFAULT, StrBuf->Value(&buf));/** for whatever reason clif->message crashes with some patterns, see bugreport:8186 **/
 			StrBuf->Clear(&buf);
 			count++;
 		}
@@ -875,12 +876,12 @@ ACMD(guildstorage)
 	if (sd->npc_id || sd->state.vending || sd->state.buyingstore || sd->state.trading)
 		return false;
 
-	if (sd->state.storage_flag == 1) {
+	if (sd->state.storage_flag == STORAGE_FLAG_NORMAL) {
 		clif->message(fd, msg_fd(fd,250));
 		return false;
 	}
 
-	if (sd->state.storage_flag == 2) {
+	if (sd->state.storage_flag == STORAGE_FLAG_GUILD) {
 		clif->message(fd, msg_fd(fd,251));
 		return false;
 	}
@@ -1124,7 +1125,7 @@ ACMD(heal)
 
 	if ( hp < 0 && sp <= 0 ) {
 		status->damage(NULL, &sd->bl, -hp, -sp, 0, 0);
-		clif->damage(&sd->bl,&sd->bl, 0, 0, -hp, 0, 4, 0);
+		clif->damage(&sd->bl,&sd->bl, 0, 0, -hp, 0, BDT_ENDURE, 0);
 		clif->message(fd, msg_fd(fd,156)); // HP or/and SP modified.
 		return true;
 	}
@@ -1135,7 +1136,7 @@ ACMD(heal)
 			status->heal(&sd->bl, hp, 0, 0);
 		else {
 			status->damage(NULL, &sd->bl, -hp, 0, 0, 0);
-			clif->damage(&sd->bl,&sd->bl, 0, 0, -hp, 0, 4, 0);
+			clif->damage(&sd->bl,&sd->bl, 0, 0, -hp, 0, BDT_ENDURE, 0);
 		}
 	}
 
@@ -1344,7 +1345,7 @@ ACMD(itemreset)
 
 	for (i = 0; i < MAX_INVENTORY; i++) {
 		if (sd->status.inventory[i].amount && sd->status.inventory[i].equip == 0) {
-			pc->delitem(sd, i, sd->status.inventory[i].amount, 0, 0, LOG_TYPE_COMMAND);
+			pc->delitem(sd, i, sd->status.inventory[i].amount, 0, DELITEM_NORMAL, LOG_TYPE_COMMAND);
 		}
 	}
 	clif->message(fd, msg_fd(fd,20)); // All of your items have been removed.
@@ -1443,7 +1444,7 @@ ACMD(joblevelup)
 			level = sd->status.job_level-1;
 		sd->status.job_level -= (unsigned int)level;
 		if (sd->status.skill_point < level)
-			pc->resetskill(sd,0); //Reset skills since we need to subtract more points.
+			pc->resetskill(sd, PCRESETSKILL_NONE); //Reset skills since we need to subtract more points.
 		if (sd->status.skill_point < level)
 			sd->status.skill_point = 0;
 		else
@@ -2086,9 +2087,9 @@ ACMD(refine)
 		if (sd->status.inventory[idx].refine != final_refine) {
 			sd->status.inventory[idx].refine = final_refine;
 			current_position = sd->status.inventory[idx].equip;
-			pc->unequipitem(sd, idx, 3);
+			pc->unequipitem(sd, idx, PCUNEQUIPITEM_RECALC|PCUNEQUIPITEM_FORCE);
 			clif->refine(fd, 0, idx, sd->status.inventory[idx].refine);
-			clif->delitem(sd, idx, 1, 3);
+			clif->delitem(sd, idx, 1, DELITEM_MATERIALCHANGE);
 			clif->additem(sd, idx, 1, 0);
 			pc->equipitem(sd, idx, current_position);
 			clif->misceffect(&sd->bl, 3);
@@ -2730,7 +2731,7 @@ ACMD(char_block)
 		return false;
 	}
 
-	chrif->char_ask_name(sd->status.account_id, atcmd_player_name, 1, 0, 0, 0, 0, 0, 0); // type: 1 - block
+	chrif->char_ask_name(sd->status.account_id, atcmd_player_name, CHAR_ASK_NAME_BLOCK, 0, 0, 0, 0, 0, 0);
 	clif->message(fd, msg_fd(fd,88)); // Character name sent to char-server to ask it.
 
 	return true;
@@ -2826,7 +2827,8 @@ ACMD(char_ban)
 		return false;
 	}
 
-	chrif->char_ask_name(sd->status.account_id, atcmd_player_name, !strcmpi(info->command,"charban") ? 6 : 2, year, month, day, hour, minute, second); // type: 2 - ban; 6 - charban
+	chrif->char_ask_name(sd->status.account_id, atcmd_player_name,
+	                     !strcmpi(info->command,"charban") ? CHAR_ASK_NAME_CHARBAN : CHAR_ASK_NAME_BAN, year, month, day, hour, minute, second);
 	clif->message(fd, msg_fd(fd,88)); // Character name sent to char-server to ask it.
 
 	return true;
@@ -2845,7 +2847,7 @@ ACMD(char_unblock)
 	}
 
 	// send answer to login server via char-server
-	chrif->char_ask_name(sd->status.account_id, atcmd_player_name, 3, 0, 0, 0, 0, 0, 0); // type: 3 - unblock
+	chrif->char_ask_name(sd->status.account_id, atcmd_player_name, CHAR_ASK_NAME_UNBLOCK, 0, 0, 0, 0, 0, 0);
 	clif->message(fd, msg_fd(fd,88)); // Character name sent to char-server to ask it.
 
 	return true;
@@ -2864,7 +2866,8 @@ ACMD(char_unban)
 	}
 
 	// send answer to login server via char-server
-	chrif->char_ask_name(sd->status.account_id, atcmd_player_name, !strcmpi(info->command,"charunban") ? 7 : 4, 0, 0, 0, 0, 0, 0); // type: 4 - unban account; type 7 - unban character
+	chrif->char_ask_name(sd->status.account_id, atcmd_player_name,
+	                     !strcmpi(info->command,"charunban") ? CHAR_ASK_NAME_CHARUNBAN : CHAR_ASK_NAME_UNBAN, 0, 0, 0, 0, 0, 0);
 	clif->message(fd, msg_fd(fd,88)); // Character name sent to char-server to ask it.
 
 	return true;
@@ -3101,7 +3104,7 @@ ACMD(questskill)
 		return false;
 	}
 
-	pc->skill(sd, skill_id, 1, 0);
+	pc->skill(sd, skill_id, 1, SKILL_GRANT_PERMANENT);
 	clif->message(fd, msg_fd(fd,70)); // You have learned the skill.
 
 	return true;
@@ -5096,7 +5099,7 @@ ACMD(dropall)
 	for (i = 0; i < MAX_INVENTORY; i++) {
 		if (sd->status.inventory[i].amount) {
 			if(sd->status.inventory[i].equip != 0)
-				pc->unequipitem(sd, i, 3);
+				pc->unequipitem(sd, i, PCUNEQUIPITEM_RECALC|PCUNEQUIPITEM_FORCE);
 			pc->dropitem(sd,  i, sd->status.inventory[i].amount);
 		}
 	}
@@ -5111,7 +5114,7 @@ ACMD(storeall)
 {
 	int i;
 
-	if (sd->state.storage_flag != 1) {
+	if (sd->state.storage_flag != STORAGE_FLAG_NORMAL) {
 		//Open storage.
 		if( storage->open(sd) == 1 ) {
 			clif->message(fd, msg_fd(fd,1161)); // You currently cannot open your storage.
@@ -5122,7 +5125,7 @@ ACMD(storeall)
 	for (i = 0; i < MAX_INVENTORY; i++) {
 		if (sd->status.inventory[i].amount) {
 			if(sd->status.inventory[i].equip != 0)
-				pc->unequipitem(sd, i, 3);
+				pc->unequipitem(sd, i, PCUNEQUIPITEM_RECALC|PCUNEQUIPITEM_FORCE);
 			storage->add(sd,  i, sd->status.inventory[i].amount);
 		}
 	}
@@ -5136,7 +5139,7 @@ ACMD(clearstorage)
 {
 	int i, j;
 
-	if (sd->state.storage_flag == 1) {
+	if (sd->state.storage_flag == STORAGE_FLAG_NORMAL) {
 		clif->message(fd, msg_fd(fd,250));
 		return false;
 	}
@@ -5164,12 +5167,12 @@ ACMD(cleargstorage)
 		return false;
 	}
 
-	if (sd->state.storage_flag == 1) {
+	if (sd->state.storage_flag == STORAGE_FLAG_NORMAL) {
 		clif->message(fd, msg_fd(fd,250));
 		return false;
 	}
 
-	if (sd->state.storage_flag == 2) {
+	if (sd->state.storage_flag == STORAGE_FLAG_GUILD) {
 		clif->message(fd, msg_fd(fd,251));
 		return false;
 	}
@@ -5200,7 +5203,7 @@ ACMD(clearcart)
 		return false;
 	}
 
-	if( sd->state.vending == 1 ) {
+	if (sd->state.vending) {
 		clif->message(fd, msg_fd(fd,548)); // You can't clean a cart while vending!
 		return false;
 	}
@@ -5326,7 +5329,7 @@ ACMD(displayskill) {
 	}
 	st = status->get_status_data(&sd->bl);
 	tick = timer->gettick();
-	clif->skill_damage(&sd->bl,&sd->bl, tick, st->amotion, st->dmotion, 1, 1, skill_id, skill_lv, 5);
+	clif->skill_damage(&sd->bl,&sd->bl, tick, st->amotion, st->dmotion, 1, 1, skill_id, skill_lv, BDT_SPLASH);
 	clif->skill_nodamage(&sd->bl, &sd->bl, skill_id, skill_lv, 1);
 	clif->skill_poseffect(&sd->bl, skill_id, skill_lv, sd->bl.x, sd->bl.y, tick);
 	return true;
@@ -5603,7 +5606,7 @@ ACMD(partyoption)
 		return false;
 	}
 
-	option = (config_switch(w1)?1:0)|(config_switch(w2)?2:0);
+	option = (config_switch(w1)?1:0)|(config_switch(w2)?2:0); // TODO: Add documentation for these values
 
 	//Change item share type.
 	if (option != p->party.item)
@@ -6075,14 +6078,14 @@ ACMD(cleanmap) {
 }
 
 ACMD(cleanarea) {
-	int x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+	int x0 = 0, y0 = 0, x1 = 0, y1 = 0, n = 0;
 
-	if (!message || !*message || sscanf(message, "%d %d %d %d", &x0, &y0, &x1, &y1) < 1) {
+	if (!message || !*message || (n=sscanf(message, "%d %d %d %d", &x0, &y0, &x1, &y1)) < 1) {
 		map->foreachinrange(atcommand->cleanfloor_sub, &sd->bl, AREA_SIZE * 2, BL_ITEM);
-	} else if (sscanf(message, "%d %d %d %d", &x0, &y0, &x1, &y1) == 1) {
-		map->foreachinrange(atcommand->cleanfloor_sub, &sd->bl, x0, BL_ITEM);
-	} else if (sscanf(message, "%d %d %d %d", &x0, &y0, &x1, &y1) == 4) {
+	} else if (n == 4) {
 		map->foreachinarea(atcommand->cleanfloor_sub, sd->bl.m, x0, y0, x1, y1, BL_ITEM);
+	} else {
+		map->foreachinrange(atcommand->cleanfloor_sub, &sd->bl, x0, BL_ITEM);
 	}
 
 	clif->message(fd, msg_fd(fd,1221)); // All dropped items have been cleaned up.
@@ -6244,10 +6247,9 @@ ACMD(users)
 /*==========================================
  *
  *------------------------------------------*/
-ACMD(reset)
-{
+ACMD(reset) {
 	pc->resetstate(sd);
-	pc->resetskill(sd,1);
+	pc->resetskill(sd, PCRESETSKILL_RESYNC);
 	sprintf(atcmd_output, msg_fd(fd,208), sd->status.name); // '%s' skill and stats points reseted!
 	clif->message(fd, atcmd_output);
 	return true;
@@ -6288,9 +6290,9 @@ ACMD(summon)
 	if(!md)
 		return false;
 
-	md->master_id=sd->bl.id;
-	md->special_state.ai=1;
-	md->deletetimer=timer->add(tick+(duration*60000),mob->timer_delete,md->bl.id,0);
+	md->master_id = sd->bl.id;
+	md->special_state.ai = AI_ATTACK;
+	md->deletetimer = timer->add(tick+(duration*60000),mob->timer_delete,md->bl.id,0);
 	clif->specialeffect(&md->bl,344,AREA);
 	mob->spawn(md);
 	sc_start4(NULL,&md->bl, SC_MODECHANGE, 100, 1, 0, MD_AGGRESSIVE, 0, 60000);
@@ -6423,14 +6425,13 @@ ACMD(uptime)
  * @changesex <sex>
  * => Changes one's sex. Argument sex can be 0 or 1, m or f, male or female.
  *------------------------------------------*/
-ACMD(changesex)
-{
+ACMD(changesex) {
 	int i;
 
-	pc->resetskill(sd,4);
+	pc->resetskill(sd, PCRESETSKILL_CHSEX);
 	// to avoid any problem with equipment and invalid sex, equipment is unequipped.
 	for( i=0; i<EQI_MAX; i++ )
-		if( sd->equip_index[i] >= 0 ) pc->unequipitem(sd, sd->equip_index[i], 3);
+		if( sd->equip_index[i] >= 0 ) pc->unequipitem(sd, sd->equip_index[i], PCUNEQUIPITEM_RECALC|PCUNEQUIPITEM_FORCE);
 	chrif->changesex(sd, true);
 	return true;
 }
@@ -6745,7 +6746,7 @@ ACMD(showmobs)
 			continue;
 		if( mob_id != -1 && md->class_ != mob_id )
 			continue;
-		if( md->special_state.ai || md->master_id )
+		if (md->special_state.ai != AI_NONE || md->master_id)
 			continue; // hide slaves and player summoned mobs
 		if( md->spawn_timer != INVALID_TIMER )
 			continue; // hide mobs waiting for respawn
@@ -7804,13 +7805,15 @@ ACMD(cash)
 				if( !battle_config.cashshop_show_points ){
 					sprintf(output, msg_fd(fd,505), ret, sd->cashPoints);
 					clif_disp_onlyself(sd, output, strlen(output));
+					clif->message(fd, output);
 				}
 			} else
 				clif->message(fd, msg_fd(fd,149)); // Unable to decrease the number/value.
 		} else {
 			if( (ret=pc->paycash(sd, -value, 0)) >= 0){
 			    sprintf(output, msg_fd(fd,410), ret, sd->cashPoints);
-			    clif_disp_onlyself(sd, output, strlen(output));
+				clif_disp_onlyself(sd, output, strlen(output));
+				clif->message(fd, output);
 			} else
 				clif->message(fd, msg_fd(fd,41)); // Unable to decrease the number/value.
 		}
@@ -7821,13 +7824,15 @@ ACMD(cash)
 				if( !battle_config.cashshop_show_points ){
 					sprintf(output, msg_fd(fd,506), ret, sd->kafraPoints);
 					clif_disp_onlyself(sd, output, strlen(output));
+					clif->message(fd, output);
 				}
 			} else
 				clif->message(fd, msg_fd(fd,149)); // Unable to decrease the number/value.
 		} else {
 			if( (ret=pc->paycash(sd, -value, -value)) >= 0){
 			    sprintf(output, msg_fd(fd,411), ret, sd->kafraPoints);
-			    clif_disp_onlyself(sd, output, strlen(output));
+				clif_disp_onlyself(sd, output, strlen(output));
+				clif->message(fd, output);
 			} else
 				clif->message(fd, msg_fd(fd,41)); // Unable to decrease the number/value.
 		}
@@ -7940,10 +7945,10 @@ ACMD(feelreset)
 /*==========================================
  * AUCTION SYSTEM
  *------------------------------------------*/
-ACMD(auction) {
-
-	if( !battle_config.feature_auction ) {
-		clif->colormes(sd->fd,COLOR_RED,msg_fd(fd,1484));
+ACMD(auction)
+{
+	if (!battle_config.feature_auction) {
+		clif->messagecolor_self(sd->fd, COLOR_RED, msg_fd(fd,1484));
 		return false;
 	}
 
@@ -7955,31 +7960,22 @@ ACMD(auction) {
 /*==========================================
  * Kill Steal Protection
  *------------------------------------------*/
-ACMD(ksprotection)
-{
+ACMD(ksprotection) {
 	if( sd->state.noks ) {
-		sd->state.noks = 0;
+		sd->state.noks = KSPROTECT_NONE;
 		clif->message(fd, msg_fd(fd,1325)); // [ K.S Protection Inactive ]
-	}
-	else
-	{
-		if( !message || !*message || !strcmpi(message, "party") )
-		{ // Default is Party
-			sd->state.noks = 2;
-			clif->message(fd, msg_fd(fd,1326)); // [ K.S Protection Active - Option: Party ]
-		}
-		else if( !strcmpi(message, "self") )
-		{
-			sd->state.noks = 1;
-			clif->message(fd, msg_fd(fd,1327)); // [ K.S Protection Active - Option: Self ]
-		}
-		else if( !strcmpi(message, "guild") )
-		{
-			sd->state.noks = 3;
-			clif->message(fd, msg_fd(fd,1328)); // [ K.S Protection Active - Option: Guild ]
-		}
-		else
-			clif->message(fd, msg_fd(fd,1329)); // Usage: @noks <self|party|guild>
+	} else if( !message || !*message || strcmpi(message, "party") == 0 ) {
+		// Default is Party
+		sd->state.noks = KSPROTECT_PARTY;
+		clif->message(fd, msg_fd(fd,1326)); // [ K.S Protection Active - Option: Party ]
+	} else if( strcmpi(message, "self") == 0 ) {
+		sd->state.noks = KSPROTECT_SELF;
+		clif->message(fd, msg_fd(fd,1327)); // [ K.S Protection Active - Option: Self ]
+	} else if( strcmpi(message, "guild") == 0 ) {
+		sd->state.noks = KSPROTECT_GUILD;
+		clif->message(fd, msg_fd(fd,1328)); // [ K.S Protection Active - Option: Guild ]
+	} else {
+		clif->message(fd, msg_fd(fd,1329)); // Usage: @noks <self|party|guild>
 	}
 	return true;
 }
@@ -8008,7 +8004,7 @@ ACMD(resetstat)
 
 ACMD(resetskill)
 {
-	pc->resetskill(sd,1);
+	pc->resetskill(sd, PCRESETSKILL_RESYNC);
 	sprintf(atcmd_output, msg_fd(fd,206), sd->status.name);
 	clif->message(fd, atcmd_output);
 	return true;
@@ -8255,7 +8251,7 @@ ACMD(delitem) {
 		{// delete pet
 			intif->delete_petdata(MakeDWord(sd->status.inventory[idx].card[1], sd->status.inventory[idx].card[2]));
 		}
-		pc->delitem(sd, idx, delamount, 0, 0, LOG_TYPE_COMMAND);
+		pc->delitem(sd, idx, delamount, 0, DELITEM_NORMAL, LOG_TYPE_COMMAND);
 
 		amount-= delamount;
 	}
@@ -8793,13 +8789,7 @@ ACMD(channel) {
 				unsigned short msg_len = 1;
 				msg_len += sprintf(mout, "[ %s list colors ] : %s", command, channel->config->colors_name[k]);
 
-				WFIFOHEAD(fd,msg_len + 12);
-				WFIFOW(fd,0) = 0x2C1;
-				WFIFOW(fd,2) = msg_len + 12;
-				WFIFOL(fd,4) = 0;
-				WFIFOL(fd,8) = channel->config->colors[k];
-				safestrncpy((char*)WFIFOP(fd,12), mout, msg_len);
-				WFIFOSET(fd, msg_len + 12);
+				clif->messagecolor_self(fd, channel->config->colors[k], mout);
 			}
 		} else {
 			DBIterator *iter = db_iterator(channel->db);
@@ -9185,13 +9175,7 @@ ACMD(fontcolor) {
 		for( k = 0; k < channel->config->colors_count; k++ ) {
 			msg_len += sprintf(mout, "[ %s ] : %s", command, channel->config->colors_name[k]);
 
-			WFIFOHEAD(fd,msg_len + 12);
-			WFIFOW(fd,0) = 0x2C1;
-			WFIFOW(fd,2) = msg_len + 12;
-			WFIFOL(fd,4) = 0;
-			WFIFOL(fd,8) = channel->config->colors[k];
-			safestrncpy((char*)WFIFOP(fd,12), mout, msg_len);
-			WFIFOSET(fd, msg_len + 12);
+			clif->messagecolor_self(fd, channel->config->colors[k], mout);
 		}
 		return false;
 	}
@@ -9214,13 +9198,8 @@ ACMD(fontcolor) {
 	sd->fontcolor = k + 1;
 	msg_len += sprintf(mout, "Color changed to '%s'", channel->config->colors_name[k]);
 
-	WFIFOHEAD(fd,msg_len + 12);
-	WFIFOW(fd,0) = 0x2C1;
-	WFIFOW(fd,2) = msg_len + 12;
-	WFIFOL(fd,4) = 0;
-	WFIFOL(fd,8) = channel->config->colors[k];
-	safestrncpy((char*)WFIFOP(fd,12), mout, msg_len);
-	WFIFOSET(fd, msg_len + 12);
+	clif->messagecolor_self(fd, channel->config->colors[k], mout);
+
 	return true;
 }
 ACMD(searchstore){
@@ -9959,11 +9938,12 @@ bool atcommand_exec(const int fd, struct map_session_data *sd, const char *messa
 		}
 		for(i = 0; i < map->list[sd->bl.m].zone->disabled_commands_count; i++) {
 			if( info->func == map->list[sd->bl.m].zone->disabled_commands[i]->cmd ) {
-				if( pc_get_group_level(sd) < map->list[sd->bl.m].zone->disabled_commands[i]->group_lv ) {
-					clif->colormes(sd->fd,COLOR_RED,"This command is disabled in this area");
+				if (pc_get_group_level(sd) < map->list[sd->bl.m].zone->disabled_commands[i]->group_lv) {
+					clif->messagecolor_self(sd->fd, COLOR_RED, "This command is disabled in this area");
 					return true;
-				} else
+				} else {
 					break;/* already found the matching command, no need to keep checking -- just go on */
+				}
 			}
 		}
 	}
