@@ -1108,7 +1108,7 @@ struct packet_openvending {
 	short PacketType;
 	short PacketLength;
 	unsigned long AID;
-	struct packet_vending_item items[MAX_VENDING];
+	struct packet_openvending_item items[MAX_VENDING];
 } __attribute__((packed));
 
 #if !defined(sun) && (!defined(__NETBSD__) || __NetBSD_Version__ >= 600000000) // NetBSD 5 and Solaris don't like pragma pack but accept the packed attribute

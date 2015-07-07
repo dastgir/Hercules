@@ -6136,7 +6136,7 @@ void clif_vendinglist(struct map_session_data* sd, unsigned int id, struct s_ven
 		vend_item->IsIdentified = vsd->status.cart[index].identify;
 		vend_item->IsDamaged = vsd->status.cart[index].attribute;
 		vend_item->refiningLevel = vsd->status.cart[index].refine;
-		clif->addcards2(&vend_item->slot.card, &vsd->status.cart[index]);
+		clif->addcards2(vend_item->slot.card, &vsd->status.cart[index]);
 	}
 	clif->send(&p,p.PacketLength,&sd->bl,SELF);
 }
@@ -6196,7 +6196,7 @@ void clif_openvending(struct map_session_data* sd, int id, struct s_vending* ven
 		vend_item->IsIdentified = sd->status.cart[index].identify;
 		vend_item->IsDamaged = sd->status.cart[index].attribute;
 		vend_item->refiningLevel = sd->status.cart[index].refine;
-		clif->addcards2(&vend_item->slot.card, &sd->status.cart[index]);
+		clif->addcards2(vend_item->slot.card, &sd->status.cart[index]);
 	}
 	clif->send(&p,p.PacketLength,&sd->bl,SELF);
 	
