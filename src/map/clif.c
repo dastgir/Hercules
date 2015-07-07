@@ -2131,7 +2131,7 @@ void clif_cutin(struct map_session_data* sd, const char* image, int type)
 /*==========================================
  * Fills in card data from the given item and into the buffer. [Skotlex]
  *------------------------------------------*/
-void clif_addcards(void* buf, struct item* item) {
+void clif_addcards(unsigned char* buf, struct item* item) {
 	int i=0,j;
 	if( item == NULL ) { //Blank data
 		WBUFW(buf,0) = 0;
@@ -6102,7 +6102,7 @@ void clif_closevendingboard(struct block_list* bl, int fd)
 /// R 0133 <packet len>.W <owner id>.L { <price>.L <amount>.W <index>.W <type>.B <name id>.W <identified>.B <damaged>.B <refine>.B <card1>.W <card2>.W <card3>.W <card4>.W }* (ZC_PC_PURCHASE_ITEMLIST_FROMMC)
 /// R 0800 <packet len>.W <owner id>.L <unique id>.L { <price>.L <amount>.W <index>.W <type>.B <name id>.W <identified>.B <damaged>.B <refine>.B <card1>.W <card2>.W <card3>.W <card4>.W }* (ZC_PC_PURCHASE_ITEMLIST_FROMMC2)
 void clif_vendinglist(struct map_session_data* sd, unsigned int id, struct s_vending* vending_items) {
-	int i,fd;
+	int i;
 	int count;
 	struct map_session_data* vsd;
 	struct packet_vendinglist p;
@@ -6138,7 +6138,7 @@ void clif_vendinglist(struct map_session_data* sd, unsigned int id, struct s_ven
 		vend_item->IsIdentified = vsd->status.cart[index].identify;
 		vend_item->IsDamaged = vsd->status.cart[index].attribute;
 		vend_item->refiningLevel = vsd->status.cart[index].refine;
-		clif->addcards(vend_item->slot, &vsd->status.cart[index]);
+		clif->addcards(vend_item->slot.card, &vsd->status.cart[index]);
 	}
 	clif->send(&p,sizeof(p),&sd->bl,SELF);
 }
@@ -6198,7 +6198,7 @@ void clif_openvending(struct map_session_data* sd, int id, struct s_vending* ven
 		vend_item->IsIdentified = vsd->status.cart[index].identify;
 		vend_item->IsDamaged = vsd->status.cart[index].attribute;
 		vend_item->refiningLevel = vsd->status.cart[index].refine;
-		clif->addcards(vend_item->slot, &vsd->status.cart[index]);
+		clif->addcards(vend_item->slot.card, &vsd->status.cart[index]);
 	}
 	clif->send(&p,sizeof(p),&sd->bl,SELF);
 	
