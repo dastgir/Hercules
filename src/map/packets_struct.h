@@ -1073,7 +1073,6 @@ struct packet_vending_item {
 	unsigned char refiningLevel;
 	struct EQUIPSLOTINFO slot;
 #if PACKETVER > 20150000
-	unsigned char option_count;
 	struct RndOptions option_data[5];
 #endif
 } __attribute__((packed));
@@ -1099,7 +1098,6 @@ struct packet_openvending_item {
 	unsigned char refiningLevel;
 	struct EQUIPSLOTINFO slot;
 #if PACKETVER > 20150000
-	unsigned char option_count;
 	struct RndOptions option_data[5];
 #endif
 } __attribute__((packed));
