@@ -24,8 +24,10 @@ enum packet_headers {
 	additemType = 0x29a,
 #elif PACKETVER < 20120925
 	additemType = 0x2d4,
-#else
+#elseif PACKETVER < 20150000
 	additemType = 0x990,
+#else
+	additemType = 0xa0c,
 #endif
 #if PACKETVER < 4
 	idle_unitType = 0x78,
@@ -134,6 +136,8 @@ enum packet_headers {
 #else
 	inventorylistnormalType = 0xa3,
 #endif
+#if PACKETVER >= 20150000
+	inventorylistequipType = 0xa0d,
 #if PACKETVER >= 20120925
 	inventorylistequipType = 0x992,
 #elif PACKETVER >= 20080102
@@ -153,6 +157,8 @@ enum packet_headers {
 	storagelistnormalType = 0xa5,
 #endif
 #if PACKETVER >= 20120925
+	storagelistequipType = 0xa10,
+#elif PACKETVER >= 20120925
 	storagelistequipType = 0x996,
 #elif PACKETVER >= 20080102
 	storagelistequipType = 0x2d1,
@@ -170,7 +176,9 @@ enum packet_headers {
 #else
 	cartlistnormalType = 0x123,
 #endif
-#if PACKETVER >= 20120925
+#if PACKETVER >= 20150000
+	cartlistequipType = 0xa0f,
+#elif PACKETVER >= 20120925
 	cartlistequipType = 0x994,
 #elif PACKETVER >= 20080102
 	cartlistequipType = 0x2d2,
@@ -256,6 +264,12 @@ struct NORMALITEM_INFO {
 #endif
 } __attribute__((packed));
 
+sturct RndOptions {
+	short index;
+	short value;
+	unsigned char param;
+};
+
 struct EQUIPITEM_INFO {
 	short index;
 	unsigned short ITID;
@@ -291,6 +305,10 @@ struct EQUIPITEM_INFO {
 		unsigned char PlaceETCTab : 1;
 		unsigned char SpareBits : 5;
 	} Flag;
+#endif
+#if PACKETVER >= 20150000	//Exact Date not known
+	unsigned char option_count;
+	struct RndOptions option_data[5];
 #endif
 } __attribute__((packed));
 
@@ -343,6 +361,10 @@ struct packet_additem {
 #endif
 #if PACKETVER >= 20071002
 	unsigned short bindOnEquipType;
+#endif
+#if PACKETVER >= 20150000	//Exact Date not known
+	unsigned char option_count;
+	struct RndOptions option_data[5];
 #endif
 } __attribute__((packed));
 
