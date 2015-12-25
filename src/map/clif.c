@@ -8940,6 +8940,10 @@ bool clif_process_message(struct map_session_data *sd, int format, const char **
 		message = name + NAME_LENGTH;
 		messagelen = textlen - NAME_LENGTH; // this should be the message length (w/ zero byte included)
 	}
+	
+#if PACKETVER >= 20151001
+	message[messagelen++] = '\0';	// zerobyte is not there in message
+#endif
 
 	if (messagelen != strnlen(message, messagelen)+1) {
 		// the declared length must match real length
