@@ -18522,7 +18522,6 @@ int skill_block_check(struct block_list *bl, sc_type type , uint16 skill_id) {
 				case SO_DIAMONDDUST:
 				case SO_POISON_BUSTER:
 				case SO_PSYCHIC_WAVE:
-				case SO_CLOUD_KILL:
 				case SO_STRIKING:
 				case SO_WARMER:
 				case SO_VACUUM_EXTREME:
