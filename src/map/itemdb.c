@@ -1712,6 +1712,7 @@ int itemdb_readdb_libconfig_sub(struct config_setting_t *it, int n, const char *
 	struct config_setting_t *t = NULL;
 	const char *str = NULL;
 	int i32 = 0;
+	long long int i64 = 0;
 	bool inherit = false;
 
 	nullpo_ret(it);
