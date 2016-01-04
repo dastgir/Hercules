@@ -342,13 +342,13 @@ const char* itemdb_typename(int type)
 	return "Unknown Type";
 }
 
-void itemdb_jobid2mapid(unsigned int *bclass, int job_id, bool enable)
+void itemdb_jobid2mapid(long long int *bclass, int job_id, bool enable)
 {
 #define set_jobmask(bclass_idx, mapid) \
 	if (enable == true) \
-		bclass[(bclass_idx)] |= 1<<(mapid); \
+		bclass[(bclass_idx)] |= 1L<<(mapid); \
 	else \
-		bclass[(bclass_idx)] &= ~(1<<(mapid))
+		bclass[(bclass_idx)] &= ~(1L<<(mapid))
 	
 	nullpo_retv(bclass);
 	
@@ -448,11 +448,11 @@ void itemdb_jobid2mapid(unsigned int *bclass, int job_id, bool enable)
  * Converts the jobid from the format in itemdb
  * to the format used by the map server. [Skotlex]
  *------------------------------------------*/
-void itemdb_jobmask2mapid(unsigned int *bclass, unsigned int jobmask)
+void itemdb_jobmask2mapid(long long int *bclass, long long int jobmask)
 {
 	int i;
 	nullpo_retv(bclass);
-	bclass[0]= bclass[1]= bclass[2]= 0;
+	bclass[0] = bclass[1] = bclass[2] = 0;
 	//Base classes
 	if (jobmask & 1<<JOB_NOVICE) {
 		//Both Novice/Super-Novice are counted with the same ID
@@ -1659,7 +1659,7 @@ void itemdb_readdb_job_sub(struct item_data* id, config_setting_t *t)
 		int job_id;
 
 		if (strcmp(job_name, "All") == 0) {
-			itemdb->jobmask2mapid(id->class_base, UINT_MAX);
+			itemdb->jobmask2mapid(id->class_base, INT64_MAX);
 		} else if ( (job_id = pc->check_job_name(job_name)) == -1) {
 			ShowWarning("itemdb_readdb_job_sub: unknown job name '%s'!\n", job_name);
 		} else {
@@ -1686,6 +1686,7 @@ int itemdb_readdb_libconfig_sub(config_setting_t *it, int n, const char *source)
 	config_setting_t *t = NULL;
 	const char *str = NULL;
 	int i32 = 0;
+	long long int i64 = 0;
 	bool inherit = false;
 
 	nullpo_ret(it);
@@ -1812,10 +1813,10 @@ int itemdb_readdb_libconfig_sub(config_setting_t *it, int n, const char *source)
 	if ((t = libconfig->setting_get_member(it, "Job"))) {
 		if (config_setting_is_group(t)) {
 			itemdb->readdb_job_sub(&id, t);
-		} else if (itemdb->lookup_const(it, "Job", &i32) && i32 >= 0) {
-			itemdb->jobmask2mapid(id.class_base, (unsigned int)i32);
+		} else if (libconfig->setting_lookup_int(it, "Job", &i64) && i64 >= 0) {
+			itemdb->jobmask2mapid(id.class_base, i64);
 		} else if( !inherit )
-			itemdb->jobmask2mapid(id.class_base, UINT_MAX);
+			itemdb->jobmask2mapid(id.class_base, INT64_MAX);
 	}
 
 	if( itemdb->lookup_const(it, "Upper", &i32) && i32 >= 0 )
