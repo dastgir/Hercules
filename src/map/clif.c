@@ -8945,8 +8945,7 @@ bool clif_process_message(struct map_session_data *sd, int format, const char **
 	
 #if PACKETVER >= 20151001
 	if (message[messagelen - 1] != '\0') {	// Normal Chat Message don't have null terminator's
-		safestrncpy(srcmesssage, message, messagelen);
-		message = srcmesssage;
+		offset = 0;
 	}
 #endif
 
