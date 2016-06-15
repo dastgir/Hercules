@@ -153,7 +153,7 @@ struct packet_CA_SSO_LOGIN_REQ {
 	uint8 clienttype;     ///< Clienttype
 	char id[24];          ///< Username
 	char password[27];    ///< Password
-	int8 mac_address[17]; ///< MAC Address
+	char mac_address[17]; ///< MAC Address
 	char ip[15];          ///< IP Address
 	char t1[];            ///< SSO Login Token (variable length)
 } __attribute__((packed));
@@ -165,7 +165,7 @@ struct packet_CA_SSO_LOGIN_REQa {
 	uint32 version;
 	uint8 clienttype;
 	char id[24];
-	int8 mac_address[17];
+	char mac_address[17];
 	char ip[15];
 	char t1[];
 } __attribute__((packed));

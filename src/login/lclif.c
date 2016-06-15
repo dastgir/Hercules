@@ -207,6 +207,7 @@ enum parsefunc_rcode lclif_parse_CA_SSO_LOGIN_REQ(int fd, struct login_session_d
 	sd->version = packet->version;
 	safestrncpy(sd->userid, packet->id, NAME_LENGTH);
 	safestrncpy(sd->passwd, packet->t1, min(tokenlen + 1, PASSWD_LEN)); // Variable-length field, don't copy more than necessary
+	safestrncpy(sd->mac_address, packet->mac_address, 17);	// Mac Length on Address is 17
 
 	if (login->config->use_md5_passwds)
 		MD5_String(sd->passwd, sd->passwd);

@@ -1174,6 +1174,7 @@ int login_mmo_auth(struct login_session_data* sd, bool isServer) {
 	// update account data
 	timestamp2string(acc.lastlogin, sizeof(acc.lastlogin), time(NULL), "%Y-%m-%d %H:%M:%S");
 	safestrncpy(acc.last_ip, ip, sizeof(acc.last_ip));
+	memcpy(acc.mac_address, sd->mac_address, sizeof(acc.mac_address));
 	acc.unban_time = 0;
 	acc.logincount++;
 
